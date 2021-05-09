@@ -18,18 +18,7 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 public class SmallTalkApplication {
 	private static final Logger logger = LoggerFactory.getLogger(SmallTalkApplication.class);
 
-	public static void main(String[] args) throws Exception {
-		//Object obj = null;
-		//JsonObject jobj = new JsonObject(new LinkedHashMap<>());
-		//jobj.put("ere", new JsonObject(4));
-		//jobj.put("rer", new JsonObject(new ArrayList<>()));
-		//jobj.get("rer").add(new JsonObject("ewewq"));
-		//jobj.get("rer").add(new JsonObject(true));
-		//obj = jobj;
-		//System.out.println(jobj.toString());
-		//System.out.println(new ObjectMapper().writeValueAsString(obj));
-		//JsonObject t = new ObjectMapper().readValue(new ObjectMapper().writeValueAsString(obj), JsonObject.class);
-		//System.out.println(t.toString());
+	public static void main(String[] args) {
 		SpringApplication.run(SmallTalkApplication.class, args);
 	}
 
