@@ -20,7 +20,10 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Random;
 
 public class DatabaseService {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
@@ -66,15 +69,16 @@ public class DatabaseService {
     }
 
     private static final String setSessionStatus = "update session set session_status = ? where session_id = ?";
-    private static void setSessionStatus(String session, String newStatus) {
+    @SuppressWarnings("SameParameterValue")
+    private static void setSessionStatus(String session, EnumSessionStatus newStatus) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement setSessionStatusSt = con.prepareStatement(setSessionStatus)) {
-            setSessionStatusSt.setString(1, newStatus);
+            setSessionStatusSt.setString(1, newStatus.toString());
             setSessionStatusSt.setString(2, session);
             setSessionStatusSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed setSessionStatus(String session, String newStatus)");
+            throw new DataAccessException("MySQL Execution Failed setSessionStatus(String session, EnumSessionStatus newStatus)");
         }
     }
 
@@ -93,17 +97,17 @@ public class DatabaseService {
                     int sessionUserId = rs.getInt(2);
                     Instant sessionCreateTime = rs.getTimestamp(3).toInstant();
                     Instant sessionExpireTime = rs.getTimestamp(4).toInstant();
-                    String sessionStatus = rs.getString(5);
-                    if (sessionStatus.equals(EnumSessionStatus.SESSION_STATUS_VALID.toString())) {
+                    EnumSessionStatus sessionStatus = EnumSessionStatus.valueOf(rs.getString(5));
+                    if (sessionStatus == EnumSessionStatus.SESSION_STATUS_VALID) {
                         if (sessionExpireTime.isBefore(Instant.now())) {
-                            setSessionStatus(sessionId, EnumSessionStatus.SESSION_STATUS_EXPIRED.toString());
+                            setSessionStatus(sessionId, EnumSessionStatus.SESSION_STATUS_EXPIRED);
                             throw new SessionExpiredException();
                         } else {
                             return sessionUserId;
                         }
-                    } else if (sessionStatus.equals(EnumSessionStatus.SESSION_STATUS_EXPIRED.toString())) {
+                    } else if (sessionStatus == EnumSessionStatus.SESSION_STATUS_EXPIRED) {
                         throw new SessionExpiredException();
-                    } else if (sessionStatus.equals(EnumSessionStatus.SESSION_STATUS_REVOKED.toString())) {
+                    } else if (sessionStatus == EnumSessionStatus.SESSION_STATUS_REVOKED) {
                         throw new SessionRevokedException();
                     } else {
                         throw new SessionInvalidException();
@@ -120,8 +124,8 @@ public class DatabaseService {
 
     /* Create an new account, have to manually set user_name and user_password after the account has created. */
     private static final String insertAccount = "insert into user_main " +
-            "(user_email, user_name, user_password_hash) " +
-            "values (?, 'New User', 'password_placeholder')";
+            "(user_email, user_name, user_password_hash, user_privilege) " +
+            "values (?, 'New User', 'password_placeholder', ?)";
     private static final String insertAccountDetail = "insert into account_detail " +
             "(user_id, user_gender, user_avatar_link, user_personal_info, user_posts, user_exp, user_prestige) " +
             "values (?, 0, ?, 'Hello World!', 0, 0, 0)";
@@ -133,6 +137,7 @@ public class DatabaseService {
              PreparedStatement insertAccountDetailSt = con.prepareStatement(insertAccountDetail);
              PreparedStatement queryLastInsertedSt = con.prepareStatement(queryLastInserted)) {
             insertAccountSt.setString(1, userEmail);
+            insertAccountSt.setString(2, EnumUserPrivilege.PRIVILEGE_NORMAL.toString());
             insertAccountSt.executeUpdate();
             try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
                 if (rs.next()) {
@@ -310,12 +315,65 @@ public class DatabaseService {
         }
     }
 
+    private static final String queryNotification = "select notification_id, notification_user_id, notification_body, notification_status " +
+            "from notification where notification_user_id = ? and notification_status = ?";
+    public static JsonObject getNotification(int userId) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement queryNotificationSt = con.prepareStatement(queryNotification)) {
+            queryNotificationSt.setInt(1, userId);
+            queryNotificationSt.setString(2, EnumNotificationStatus.NOTIFICATION_STATUS_UNREAD.toString());
+            try (ResultSet rs = queryNotificationSt.executeQuery()) {
+                JsonObject result = new JsonObject(new ArrayList<>());
+                while (rs.next()) {
+                    JsonObject record = new JsonObject(new LinkedHashMap<>());
+                    record.put("notification_id", new JsonObject(rs.getInt(1)));
+                    record.put("notification_body", JsonObject.create(rs.getString(2)));
+                    result.add(record);
+                }
+                return result;
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed getNotification(int userId)");
+        }
+    }
+
+    private static final String setNotificationStatus = "update notification set notification_status = ? where notification_id = ? and notification_user_id = ?";
+    private static final String setUserAllNotificationStatus = "update notification set notification_status = ? where notification_user_id = ?";
+    public static void readNotification(int userId, int notificationId) {
+        if (notificationId == 0) {
+            try (Connection con = DriverManager.getConnection(url, user, password);
+                 PreparedStatement setUserAllNotificationStatusSt = con.prepareStatement(setUserAllNotificationStatus)) {
+                setUserAllNotificationStatusSt.setString(1, EnumNotificationStatus.NOTIFICATION_STATUS_READ.toString());
+                setUserAllNotificationStatusSt.setInt(2, userId);
+                setUserAllNotificationStatusSt.executeUpdate();
+            } catch (SQLException e) {
+                logger.info(e.getMessage());
+                throw new DataAccessException("MySQL Execution Failed readNotification(int userId, int notificationId)");
+            }
+        } else {
+            try (Connection con = DriverManager.getConnection(url, user, password);
+                 PreparedStatement setNotificationStatusSt = con.prepareStatement(setNotificationStatus)) {
+                setNotificationStatusSt.setString(1, EnumNotificationStatus.NOTIFICATION_STATUS_READ.toString());
+                setNotificationStatusSt.setInt(2, notificationId);
+                setNotificationStatusSt.setInt(3, userId);
+                setNotificationStatusSt.executeUpdate();
+            } catch (SQLException e) {
+                logger.info(e.getMessage());
+                throw new DataAccessException("MySQL Execution Failed readNotification(int userId, int notificationId)");
+            }
+        }
+    }
+
+    private static final int historyRecordsPerPage = 30;
     private static final String queryBrowsingHistory = "select record_id, record_user_id, record_thread_id, record_timestamp " +
-            "from browsing_history where record_user_id = ?";
-    public static JsonObject getBrowsingHistory(int userId)  {
+            "from browsing_history where record_user_id = ? limit ?, ?";
+    public static JsonObject getBrowsingHistory(int userId, int page)  {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryBrowsingHistorySt = con.prepareStatement(queryBrowsingHistory)) {
             queryBrowsingHistorySt.setInt(1, userId);
+            queryBrowsingHistorySt.setInt(2, historyRecordsPerPage * page);
+            queryBrowsingHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryBrowsingHistorySt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
                 while (rs.next()) {
@@ -329,11 +387,10 @@ public class DatabaseService {
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed getBrowsingHistory(int userId)");
+            throw new DataAccessException("MySQL Execution Failed getBrowsingHistory(int userId, int page)");
         }
     }
 
-    private static final int historyRecordsPerPage = 30;
     private static final String queryThreadHistory = "select thread_id " +
             "from thread where thread_author = ? limit ?, ?";
     public static JsonObject getThreadHistory(int userId, int page) {
@@ -347,7 +404,7 @@ public class DatabaseService {
                 while (rs.next()) {
                     int threadId = rs.getInt(1);
                     ThreadData threadData = getThreadData(threadId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(threadData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(threadData)));
                 }
                 return result;
             }
@@ -373,7 +430,7 @@ public class DatabaseService {
                 while (rs.next()) {
                     int postId = rs.getInt(1);
                     PostData postData = getPostData(postId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(postData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(postData)));
                 }
                 return result;
             }
@@ -388,7 +445,7 @@ public class DatabaseService {
 
     private static final String queryCommentHistory = "select comment_id " +
             "from comment where comment_author = ? limit ?, ?";
-    private static JsonObject getCommentHistory(int userId, int page) {
+    public static JsonObject getCommentHistory(int userId, int page) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryCommentHistorySt = con.prepareStatement(queryCommentHistory)) {
             queryCommentHistorySt.setInt(1, userId);
@@ -399,7 +456,7 @@ public class DatabaseService {
                 while (rs.next()) {
                     int commentId = rs.getInt(1);
                     CommentData commentData = getCommentData(commentId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(commentData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(commentData)));
                 }
                 return result;
             }
@@ -422,7 +479,7 @@ public class DatabaseService {
                 while (rs.next()) {
                     int threadId = rs.getInt(1);
                     ThreadData threadData = getThreadData(threadId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(threadData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(threadData)));
                 }
                 return result;
             }
@@ -435,8 +492,6 @@ public class DatabaseService {
         }
     }
 
-    // Todo: Caches for get page requests
-    // Todo: Counting heat, exp and posts
     private static final int threadsPerPage = 30;
     private static final String getForumPage = "select thread_id from thread where thread_forum_id = ? order by thread_active_timestamp desc limit ?, ?";
     public static JsonObject getForumPage(int forumId, int page) throws MalformedRequestException {
@@ -455,7 +510,7 @@ public class DatabaseService {
                 while (rs.next()) {
                     int threadId = rs.getInt(1);
                     ThreadData threadData = getThreadData(threadId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(threadData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(threadData)));
                 }
                 return result;
             }
@@ -481,12 +536,13 @@ public class DatabaseService {
             getThreadPageSt.setInt(1, threadId);
             getThreadPageSt.setInt(2, postsPerPage * page);
             getThreadPageSt.setInt(3, postsPerPage);
+            if (page == 0) { modifyThreadViews(threadId, 1); }
             try (ResultSet rs = getThreadPageSt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
                 while (rs.next()) {
                     int postId = rs.getInt(1);
                     PostData postData = getPostData(postId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(postData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(postData)));
                 }
                 return result;
             }
@@ -517,7 +573,7 @@ public class DatabaseService {
                 while (rs.next()) {
                     int commentId = rs.getInt(1);
                     CommentData commentData = getCommentData(commentId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(commentData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(commentData)));
                 }
                 return result;
             }
@@ -540,14 +596,14 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement getCommentPageSt = con.prepareStatement(getCommentPage)) {
             getCommentPageSt.setInt(1, commentId);
-            getCommentPageSt.setInt(2, threadsPerPage * page);
-            getCommentPageSt.setInt(3, threadsPerPage);
+            getCommentPageSt.setInt(2, commentsPerPage * page);
+            getCommentPageSt.setInt(3, commentsPerPage);
             try (ResultSet rs = getCommentPageSt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
                 while (rs.next()) {
                     int childCommentId = rs.getInt(1);
                     CommentData childCommentData = getCommentData(childCommentId);
-                    result.add(new JsonObject(new ObjectMapper().writeValueAsString(childCommentData)));
+                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(childCommentData)));
                 }
                 return result;
             }
@@ -561,23 +617,23 @@ public class DatabaseService {
     }
 
     private static final String queryForum = "select " +
-            "forum_id, forum_title, forum_posts, forum_heat from forum where forum_id = ?";
+            "forum_id, forum_title, forum_threads, forum_heat from forum where forum_id = ?";
     private static final String queryThread = "select " +
             "thread_id, thread_forum_id, thread_title, thread_author, thread_create_timestamp, thread_active_timestamp, thread_status, thread_posts, thread_views, thread_votes, thread_heat,  from thread where thread_id = ?";
     private static final String queryPost = "select " +
-            "post_id, post_thread_id, post_author, post_timestamp, post_refer_to, post_content, post_status, post_comments, post_votes from post where post_id = ?";
+            "post_id, post_thread_id, post_author, post_timestamp, post_quote_id, post_content, post_status, post_comments, post_votes from post where post_id = ?";
     private static final String queryComment = "select " +
-            "comment_id, comment_post_id, comment_root_id, comment_author, comment_timestamp, comment_refer_to, comment_content, comment_status, comment_comments, comment_votes, from comment where comment_id = ?";
+            "comment_id, comment_post_id, comment_root_id, comment_author, comment_timestamp, comment_quote_id, comment_content, comment_status, comment_comments, comment_votes, from comment where comment_id = ?";
     public static ForumData getForumData(int forumId) throws ForumNotExistsException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryForumSt = con.prepareStatement(queryForum)) {
             queryForumSt.setInt(1, forumId);
             try (ResultSet rs = queryForumSt.executeQuery()) {
-                if (!rs.next()) {
+                if (rs.next()) {
                     return ForumData.builder()
                             .forumId(rs.getInt(1))
                             .title(rs.getString(2))
-                            .posts(rs.getInt(3))
+                            .threads(rs.getInt(3))
                             .heat(rs.getInt(4))
                             .build();
                 } else {
@@ -629,7 +685,7 @@ public class DatabaseService {
                             .threadId(rs.getInt(2))
                             .author(rs.getInt(3))
                             .timestamp(rs.getTimestamp(4).toInstant())
-                            .referTo(rs.getInt(5))
+                            .quoteId(rs.getInt(5))
                             .content(rs.getString(6))
                             .status(EnumPostStatus.valueOf(rs.getString(7)))
                             .comments(rs.getInt(8))
@@ -657,7 +713,7 @@ public class DatabaseService {
                             .rootId(rs.getInt(3))
                             .author(rs.getInt(4))
                             .timestamp(rs.getTimestamp(5).toInstant())
-                            .referTo(rs.getInt(6))
+                            .quoteId(rs.getInt(6))
                             .content(rs.getString(7))
                             .status(EnumCommentStatus.valueOf(rs.getString(8)))
                             .comments(rs.getInt(9))
@@ -673,55 +729,76 @@ public class DatabaseService {
         }
     }
 
-    private static final String insertMessage = "insert into message (message_sender, message_receiver, message_type, message_status, message_content) " +
+    private static final String insertMessage = "insert into message (message_sender, message_receiver, message_type, message_status, message_content, message_timestamp) " +
             "values (?, ?, ?, ?, ?)";
-    public static void pushOfflineMessage(int sender, int receiver, String content, EnumMessageType messageType) throws UserNotExistsException {
+    public static void pushPrivateMessage(int sender, int receiver, String content, EnumMessageType messageType) throws UserNotExistsException {
         ContactData receiverData = getUserData(receiver);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement insertMessageSt = con.prepareStatement(insertMessage)) {
             insertMessageSt.setInt(1, sender);
             insertMessageSt.setInt(2, receiver);
             insertMessageSt.setString(3, messageType.toString());
-            insertMessageSt.setString(4, EnumMessageStatus.MESSAGE_STATUS_PENDING.toString());
+            insertMessageSt.setString(4, EnumMessageStatus.MESSAGE_STATUS_UNREAD.toString());
             insertMessageSt.setString(5, content);
+            insertMessageSt.setTimestamp(6, Timestamp.from(Instant.now()));
             insertMessageSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed pushOfflineMessage(int userId, String content, EnumMessageType messageType)");
+            throw new DataAccessException("MySQL Execution Failed pushPrivateMessage(int sender, int receiver, String content, EnumMessageType messageType)");
         }
     }
 
-    private static final String queryUserMessageList = "select message_id, message_sender, message_receiver, message_type, message_status, message_content " +
+    private static final String queryUserMessageList = "select message_id, message_sender, message_receiver, message_type, message_status, message_content, message_timestamp " +
             "from account where message_receiver = ?";
-    private static final String setMessageStatus = "update message set message_status = ? where message_id = ?";
-    public static JsonObject popOfflineMessageAsList(int userId) {
-        List<JsonObject> result = new ArrayList<>();
+    public static JsonObject fetchPrivateMessage(int userId) {
+        JsonObject result = new JsonObject(new ArrayList<>());
         try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement queryUserMessageListSt = con.prepareStatement(queryUserMessageList);
-             PreparedStatement setMessageStatusSt = con.prepareStatement(setMessageStatus)) {
+             PreparedStatement queryUserMessageListSt = con.prepareStatement(queryUserMessageList)) {
             queryUserMessageListSt.setInt(1, userId);
             try (ResultSet rs = queryUserMessageListSt.executeQuery()) {
-                if (rs.next()) {
+                while (rs.next()) {
                     JsonObject message = new JsonObject(new LinkedHashMap<>());
                     message.put("message_id", new JsonObject(rs.getInt(1)));
                     message.put("message_sender", new JsonObject(rs.getInt(2)));
                     message.put("message_receiver", new JsonObject(rs.getInt(3)));
                     message.put("message_type", new JsonObject(rs.getString(4)));
                     message.put("message_content", new JsonObject(rs.getString(5)));
+                    message.put("message_timestamp", new JsonObject(rs.getTimestamp(6).toInstant().toString()));
                     result.add(message);
-                    setMessageStatusSt.setString(1, EnumMessageStatus.MESSAGE_STATUS_POPPED.toString());
-                    setMessageStatusSt.setInt(2, rs.getInt(1));
-                    setMessageStatusSt.executeUpdate();
-                } else {
-                    throw new DataAccessException("Unexpected Error - Pop Offline Messages!");
                 }
+                return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed popOfflineMessageAsList(int userId)");
+            throw new DataAccessException("MySQL Execution Failed fetchPrivateMessage(int userId)");
         }
+    }
 
-        return new JsonObject(result);
+    private static final String setUserAllMessageStatus = "update message set message_status = ? where message_receiver = ?";
+    private static final String setMessageStatus = "update message set message_status = ? where message_id = ? and message_receiver = ?";
+    public static void readPrivateMessage(int userId, int messageId) {
+        if (messageId == 0) {
+            try (Connection con = DriverManager.getConnection(url, user, password);
+                 PreparedStatement setUserAllMessageStatusSt = con.prepareStatement(setUserAllMessageStatus)) {
+                setUserAllMessageStatusSt.setString(1, EnumMessageStatus.MESSAGE_STATUS_READ.toString());
+                setUserAllMessageStatusSt.setInt(2, userId);
+                setUserAllMessageStatusSt.executeUpdate();
+            } catch (SQLException e) {
+                logger.info(e.getMessage());
+                throw new DataAccessException("MySQL Execution Failed readPrivateMessage(int userId, int messageId)");
+            }
+        } else {
+            try (Connection con = DriverManager.getConnection(url, user, password);
+                 PreparedStatement setMessageStatusSt = con.prepareStatement(setMessageStatus)) {
+                setMessageStatusSt.setString(1, EnumMessageStatus.MESSAGE_STATUS_READ.toString());
+                setMessageStatusSt.setInt(2, messageId);
+                setMessageStatusSt.setInt(3, userId);
+                setMessageStatusSt.executeUpdate();
+            } catch (SQLException e) {
+                logger.info(e.getMessage());
+                throw new DataAccessException("MySQL Execution Failed readPrivateMessage(int userId, int messageId)");
+            }
+        }
     }
 
     private static final String passcodeCharSet = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -750,7 +827,7 @@ public class DatabaseService {
             insertPasscodeSt.setString(2, email);
             insertPasscodeSt.setTimestamp(3, Timestamp.from(Instant.now()));
             insertPasscodeSt.setTimestamp(4, Timestamp.from(Instant.now().plus(PASSCODE_EXPIRE_DURATION)));
-            insertPasscodeSt.setString(5, EnumPasscodeStatus.PASSCODE_STATUS_PENDING.toString());
+            insertPasscodeSt.setString(5, EnumPasscodeStatus.PASSCODE_STATUS_VALID.toString());
             insertPasscodeSt.executeUpdate();
             return passcode;
         } catch (SQLException e) {
@@ -760,15 +837,16 @@ public class DatabaseService {
     }
 
     private static final String setPasscodeStatus = "update passcode set passcode_status = ? where passcode = ?";
-    private static void setPasscodeStatus(String passcode, String newStatus) {
+    @SuppressWarnings("SameParameterValue")
+    private static void setPasscodeStatus(String passcode, EnumPasscodeStatus newStatus) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement setPasscodeStatusSt = con.prepareStatement(setPasscodeStatus)) {
-            setPasscodeStatusSt.setString(1, newStatus);
+            setPasscodeStatusSt.setString(1, newStatus.toString());
             setPasscodeStatusSt.setString(2, passcode);
             setPasscodeStatusSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed setPasscodeStatus(String passcode, String newStatus)");
+            throw new DataAccessException("MySQL Execution Failed setPasscodeStatus(String passcode, EnumPasscodeStatus newStatus)");
         }
     }
 
@@ -785,10 +863,10 @@ public class DatabaseService {
                     String passcodeEmail = rs.getString(1);
                     Instant passcodeCreateTime = rs.getTimestamp(2).toInstant();
                     Instant passcodeExpireTime = rs.getTimestamp(3).toInstant();
-                    String passcodeStatus = rs.getString(4);
-                    if (passcodeStatus.equals(EnumPasscodeStatus.PASSCODE_STATUS_PENDING.toString())) {
+                    EnumPasscodeStatus passcodeStatus = EnumPasscodeStatus.valueOf(rs.getString(4));
+                    if (passcodeStatus == EnumPasscodeStatus.PASSCODE_STATUS_VALID) {
                         if (passcodeExpireTime.isBefore(Instant.now())) {
-                            setPasscodeStatus(passcode, EnumPasscodeStatus.PASSCODE_STATUS_EXPIRED.toString());
+                            setPasscodeStatus(passcode, EnumPasscodeStatus.PASSCODE_STATUS_EXPIRED);
                             throw new PasscodeException();
                         } else if (!passcodeEmail.equals(email)) {
                             throw new PasscodeException();
@@ -846,18 +924,48 @@ public class DatabaseService {
         }
     }
 
+    private static void notifyThreadAuthor(int threadId, int replyId) throws ThreadNotExistException {
+        ThreadData threadData = getThreadData(threadId);
+        notify(threadData.getAuthor(), replyId, EnumNotificationType.ENUM_NOTIFICATION_TYPE_THREAD_AUTHOR);
+    }
+
+    private static void notifyPostAuthor(int postId, int replyId) throws ThreadNotExistException, PostNotExistsException {
+        PostData postData = getPostData(postId);
+        notify(postData.getAuthor(), replyId, EnumNotificationType.ENUM_NOTIFICATION_TYPE_POST_AUTHOR);
+        notifyThreadAuthor(postData.getThreadId(), replyId);
+    }
+
+    private static void notifyCommentRootAuthor(int commentId, int replyId) throws ThreadNotExistException, PostNotExistsException, CommentNotExistsException {
+        CommentData commentData = getCommentData(commentId);
+        notify(commentData.getAuthor(), replyId, EnumNotificationType.ENUM_NOTIFICATION_TYPE_COMMENT_ROOT_AUTHOR);
+        notifyPostAuthor(commentData.getPostId(), replyId);
+    }
+
+    private static final String insertNotification = "insert into notification " +
+            "(notification_user_id, notification_reply_id, notification_type, notification_status) " +
+            "values (?, ?, ?, ?)";
+    private static void notify(int userId, int replyId, EnumNotificationType notificationType) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement insertNotificationSt = con.prepareStatement(insertNotification)) {
+            insertNotificationSt.setInt(1, userId);
+            insertNotificationSt.setInt(2, replyId);
+            insertNotificationSt.setString(3, notificationType.toString());
+            insertNotificationSt.setString(4, EnumNotificationStatus.NOTIFICATION_STATUS_UNREAD.toString());
+            insertNotificationSt.executeUpdate();
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed notify(int userId, int replyId, EnumNotificationType notificationType)");
+        }
+    }
+
     private static final String insertThread = "insert into thread " +
             "(thread_forum_id, thread_title, thread_author, thread_create_timestamp, thread_active_timestamp, thread_status, thread_posts, thread_views, thread_votes, thread_heat) " +
             "values (?, ?, ?, ?, ?, ?, 0, 0, 0, 0)";
     public static int newThread(int authorId, int forumId, String threadTitle) throws MalformedRequestException {
-        try {
-            ForumData forumData = getForumData(forumId);
-        } catch (ForumNotExistsException e) {
-            throw new MalformedRequestException();
-        }
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement insertThreadSt = con.prepareStatement(insertThread);
              PreparedStatement queryLastInsertedSt = con.prepareStatement(queryLastInserted)) {
+            ForumData forumData = getForumData(forumId);
             insertThreadSt.setInt(1, forumId);
             insertThreadSt.setString(2, threadTitle);
             insertThreadSt.setInt(3, authorId);
@@ -865,6 +973,7 @@ public class DatabaseService {
             insertThreadSt.setTimestamp(5, Timestamp.from(Instant.now()));
             insertThreadSt.setString(6, EnumThreadStatus.THREAD_STATUS_VISIBLE.toString());
             insertThreadSt.executeUpdate();
+            modifyForumThreads(forumId, 1);
             try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
                 if (rs.next()) {
                     return rs.getInt(1);
@@ -872,6 +981,8 @@ public class DatabaseService {
                     throw new DataAccessException("Unexpected Error - Create New Thread!");
                 }
             }
+        } catch (ForumNotExistsException e) {
+            throw new MalformedRequestException();
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed newThread(int authorId, int forumId, String threadTitle, String threadContent)");
@@ -879,64 +990,160 @@ public class DatabaseService {
     }
 
     private static final String insertPost = "insert into post " +
-            "(post_thread_id, post_author, post_timestamp, post_refer_to, post_content, post_status, post_comments, post_votes) " +
+            "(post_thread_id, post_author, post_timestamp, post_quote_id, post_content, post_status, post_comments, post_votes) " +
             "values (?, ?, ?, ?, ?, ?, 0, 0)";
-    public static void newPost(int authorId, int threadId, int referTo, String postContent) throws MalformedRequestException {
-        try {
+    public static void newPost(int authorId, int threadId, int quoteId, String postContent) throws MalformedRequestException {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement insertPostSt = con.prepareStatement(insertPost);
+             PreparedStatement queryLastInsertedSt = con.prepareStatement(queryLastInserted)) {
             ThreadData threadData = getThreadData(threadId);
-            if (referTo != 0 && getPostData(referTo).getThreadId() != threadId) {
-                throw new MalformedRequestException();
+            if (quoteId == 0) {
+                insertPostSt.setInt(1, threadId);
+                insertPostSt.setInt(2, authorId);
+                insertPostSt.setTimestamp(3, Timestamp.from(Instant.now()));
+                insertPostSt.setInt(4, quoteId);
+                insertPostSt.setString(5, postContent);
+                insertPostSt.setString(6, EnumPostStatus.POST_STATUS_VISIBLE.toString());
+                insertPostSt.executeUpdate();
+                modifyThreadPosts(threadId, 1);
+                setThreadActiveTimestamp(threadId);
+                try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
+                    if (rs.next()) {
+                        int newPostId = rs.getInt(1);
+                        notifyThreadAuthor(threadId, newPostId);
+                    }
+                } catch (ThreadNotExistException e) {
+                    logger.info(e.getMessage());
+                    throw new DataAccessException("Server error - new post");
+                }
+            } else {
+                PostData quotedPostData = getPostData(quoteId);
+                if (quotedPostData.getThreadId() != threadId) {
+                    throw new MalformedRequestException();
+                }
+                insertPostSt.setInt(1, threadId);
+                insertPostSt.setInt(2, authorId);
+                insertPostSt.setTimestamp(3, Timestamp.from(Instant.now()));
+                insertPostSt.setInt(4, quoteId);
+                insertPostSt.setString(5, postContent);
+                insertPostSt.setString(6, EnumPostStatus.POST_STATUS_VISIBLE.toString());
+                insertPostSt.executeUpdate();
+                modifyThreadPosts(threadId, 1);
+                try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
+                    if (rs.next()) {
+                        int newPostId = rs.getInt(1);
+                        notify(quotedPostData.getAuthor(), newPostId, EnumNotificationType.ENUM_NOTIFICATION_TYPE_POST_QUOTE);
+                        notifyThreadAuthor(threadId, newPostId);
+                    }
+                } catch (ThreadNotExistException e) {
+                    logger.info(e.getMessage());
+                    throw new DataAccessException("Server error - new post");
+                }
             }
         } catch (ThreadNotExistException | PostNotExistsException e) {
             throw new MalformedRequestException();
-        }
-        try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement insertPostSt = con.prepareStatement(insertPost)) {
-            insertPostSt.setInt(1, threadId);
-            insertPostSt.setInt(2, authorId);
-            insertPostSt.setTimestamp(3, Timestamp.from(Instant.now()));
-            insertPostSt.setInt(4, referTo);
-            insertPostSt.setString(5, postContent);
-            insertPostSt.setString(6, EnumPostStatus.POST_STATUS_VISIBLE.toString());
-            insertPostSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed newPost(int authorId, int threadId, int referTo, String postContent)");
+            throw new DataAccessException("MySQL Execution Failed newPost(int authorId, int threadId, int quoteId, String postContent)");
         }
     }
 
     private static final String insertComment = "insert into comment " +
-            "(comment_post_id, comment_root_id, comment_author, comment_timestamp, comment_refer_to, comment_content, comment_status, comment_comments, comment_votes) " +
+            "(comment_post_id, comment_root_id, comment_author, comment_timestamp, comment_quote_id, comment_content, comment_status, comment_comments, comment_votes) " +
             "values (?, ?, ?, ?, ?, ?, ?, 0, 0)";
-    public static void newComment(int authorId, int postId, int referTo, String commentContent) throws MalformedRequestException {
+    public static void newComment(int authorId, int postId, int quoteId, String commentContent) throws MalformedRequestException {
         try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement insertCommentSt = con.prepareStatement(insertComment)) {
+             PreparedStatement insertCommentSt = con.prepareStatement(insertComment);
+             PreparedStatement queryLastInsertedSt = con.prepareStatement(queryLastInserted)) {
             PostData postData = getPostData(postId);
-            if (referTo == 0) {
+            if (quoteId == 0) {
+                insertCommentSt.setInt(1, postId);
                 insertCommentSt.setInt(2, 0);
+                insertCommentSt.setInt(3, authorId);
+                insertCommentSt.setTimestamp(4, Timestamp.from(Instant.now()));
+                insertCommentSt.setInt(5, quoteId);
+                insertCommentSt.setString(6, commentContent);
+                insertCommentSt.setString(7, EnumCommentStatus.COMMENT_STATUS_VISIBLE.toString());
+                insertCommentSt.executeUpdate();
+                modifyPostComments(postId, 1);
+                setThreadActiveTimestamp(postData.getThreadId());
+                try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
+                    if (rs.next()) {
+                        notifyPostAuthor(postId, rs.getInt(1));
+                    }
+                } catch (ThreadNotExistException | PostNotExistsException e) {
+                    logger.info(e.getMessage());
+                    throw new DataAccessException("Server error - new comment");
+                }
             } else {
-                CommentData rootCommentData = getCommentData(referTo);
-                if (rootCommentData.getPostId() != postId) {
+                CommentData quotedCommentData = getCommentData(quoteId);
+                if (quotedCommentData.getPostId() != postId) {
                     throw new MalformedRequestException();
                 }
-                if (rootCommentData.getRootId() == 0) {
-                    insertCommentSt.setInt(2, rootCommentData.getCommentId());
+                if (quotedCommentData.getRootId() == 0) {
+                    insertCommentSt.setInt(1, postId);
+                    insertCommentSt.setInt(2, quotedCommentData.getCommentId());
+                    insertCommentSt.setInt(3, authorId);
+                    insertCommentSt.setTimestamp(4, Timestamp.from(Instant.now()));
+                    insertCommentSt.setInt(5, quoteId);
+                    insertCommentSt.setString(6, commentContent);
+                    insertCommentSt.setString(7, EnumCommentStatus.COMMENT_STATUS_VISIBLE.toString());
+                    insertCommentSt.executeUpdate();
+                    modifyPostComments(postId, 1);
+                    modifyCommentComments(quoteId, 1);
+                    setThreadActiveTimestamp(postData.getThreadId());
+                    try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
+                        if (rs.next()) {
+                            int newCommentId = rs.getInt(1);
+                            notifyCommentRootAuthor(quotedCommentData.getCommentId(), newCommentId);
+                        }
+                    } catch (ThreadNotExistException | PostNotExistsException e) {
+                        logger.info(e.getMessage());
+                        throw new DataAccessException("Server error - new comment");
+                    }
                 } else {
-                    insertCommentSt.setInt(2, rootCommentData.getRootId());
+                    CommentData rootCommentData = getCommentData(quotedCommentData.getRootId());
+                    insertCommentSt.setInt(1, postId);
+                    insertCommentSt.setInt(2, rootCommentData.getCommentId());
+                    insertCommentSt.setInt(3, authorId);
+                    insertCommentSt.setTimestamp(4, Timestamp.from(Instant.now()));
+                    insertCommentSt.setInt(5, quoteId);
+                    insertCommentSt.setString(6, commentContent);
+                    insertCommentSt.setString(7, EnumCommentStatus.COMMENT_STATUS_VISIBLE.toString());
+                    insertCommentSt.executeUpdate();
+                    modifyPostComments(postId, 1);
+                    modifyCommentComments(rootCommentData.getCommentId(), 1);
+                    setThreadActiveTimestamp(postData.getThreadId());
+                    try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
+                        if (rs.next()) {
+                            int newCommentId = rs.getInt(1);
+                            notify(quotedCommentData.getAuthor(), newCommentId, EnumNotificationType.ENUM_NOTIFICATION_TYPE_COMMENT_QUOTE);
+                            notifyCommentRootAuthor(rootCommentData.getCommentId(), newCommentId);
+                        }
+                    } catch (ThreadNotExistException | PostNotExistsException | CommentNotExistsException e) {
+                        logger.info(e.getMessage());
+                        throw new DataAccessException("Server error - new comment");
+                    }
                 }
             }
-            insertCommentSt.setInt(1, postId);
-            insertCommentSt.setInt(3, authorId);
-            insertCommentSt.setTimestamp(4, Timestamp.from(Instant.now()));
-            insertCommentSt.setInt(5, referTo);
-            insertCommentSt.setString(6, commentContent);
-            insertCommentSt.setString(7, EnumCommentStatus.COMMENT_STATUS_VISIBLE.toString());
-            insertCommentSt.executeUpdate();
         } catch (PostNotExistsException | CommentNotExistsException e) {
             throw new MalformedRequestException();
         } catch (SQLException e) {
             logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed newComment(int authorId, int postId, int referTo, String commentContent)");
+            throw new DataAccessException("MySQL Execution Failed newComment(int authorId, int postId, int quoteId, String commentContent)");
+        }
+    }
+
+    private static final String setThreadActiveTimestamp = "update thread set thread_active_timestamp = ? where thread_id = ?";
+    private static void setThreadActiveTimestamp(int threadId) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement setThreadActiveTimestampSt = con.prepareStatement(setThreadActiveTimestamp)) {
+            setThreadActiveTimestampSt.setTimestamp(1, Timestamp.from(Instant.now()));
+            setThreadActiveTimestampSt.setInt(2, threadId);
+            setThreadActiveTimestampSt.executeUpdate();
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed setThreadActiveTimestamp(int threadId)");
         }
     }
 
@@ -1004,11 +1211,11 @@ public class DatabaseService {
         }
     }
 
-    private static final String checkThreadVoted = "select record_id from thread_vote where record_thread_id = ? and record_voter_id = ?";
+    private static final String queryThreadVoted = "select record_id from thread_vote where record_thread_id = ? and record_voter_id = ?";
     private static boolean hasVotedThread(int voterId, int threadId) throws ThreadNotExistException {
         ThreadData threadData = getThreadData(threadId);
         try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement checkThreadVotedSt = con.prepareStatement(checkThreadVoted)) {
+             PreparedStatement checkThreadVotedSt = con.prepareStatement(queryThreadVoted)) {
             checkThreadVotedSt.setInt(1, threadId);
             checkThreadVotedSt.setInt(2, voterId);
             try (ResultSet rs = checkThreadVotedSt.executeQuery()) {
@@ -1020,11 +1227,11 @@ public class DatabaseService {
         }
     }
 
-    private static final String checkPostVoted = "select record_id from post_vote where record_post_id = ? and record_voter_id = ?";
+    private static final String queryPostVoted = "select record_id from post_vote where record_post_id = ? and record_voter_id = ?";
     private static boolean hasVotedPost(int voterId, int postId) throws PostNotExistsException {
         PostData postData = getPostData(postId);
         try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement checkPostVotedSt = con.prepareStatement(checkPostVoted)) {
+             PreparedStatement checkPostVotedSt = con.prepareStatement(queryPostVoted)) {
             checkPostVotedSt.setInt(1, postId);
             checkPostVotedSt.setInt(2, voterId);
             try (ResultSet rs = checkPostVotedSt.executeQuery()) {
@@ -1036,11 +1243,11 @@ public class DatabaseService {
         }
     }
 
-    private static final String checkCommentVoted = "select record_id from comment_vote where record_comment_id = ? and record_voter_id = ?";
+    private static final String queryCommentVoted = "select record_id from comment_vote where record_comment_id = ? and record_voter_id = ?";
     private static boolean hasVotedComment(int voterId, int commentId) throws CommentNotExistsException {
         CommentData commentData = getCommentData(commentId);
         try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement checkCommentVotedSt = con.prepareStatement(checkCommentVoted)) {
+             PreparedStatement checkCommentVotedSt = con.prepareStatement(queryCommentVoted)) {
             checkCommentVotedSt.setInt(1, commentId);
             checkCommentVotedSt.setInt(2, voterId);
             try (ResultSet rs = checkCommentVotedSt.executeQuery()) {
@@ -1056,26 +1263,22 @@ public class DatabaseService {
             "(record_thread_id, record_voter_id) " +
             "values (?, ?)";
     private static final String deleteVoteRecordThread = "delete from thread_vote where record_thread_id = ? and record_voter_id = ?";
-    private static final String voteThreadUpdate = "update thread set thread_votes = thread_votes + ? where thread_id = ?";
     public static void voteThread(int voterId, int threadId) throws ThreadNotExistException {
         ThreadData threadData = getThreadData(threadId);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement voteThreadSt = con.prepareStatement(voteThread);
-             PreparedStatement deleteVoteRecordSt = con.prepareStatement(deleteVoteRecordThread);
-             PreparedStatement voteThreadUpdateSt = con.prepareStatement(voteThreadUpdate)) {
+             PreparedStatement deleteVoteRecordSt = con.prepareStatement(deleteVoteRecordThread)) {
             if (hasVotedThread(voterId, threadId)) {
                 deleteVoteRecordSt.setInt(1, threadId);
                 deleteVoteRecordSt.setInt(2, voterId);
                 deleteVoteRecordSt.executeUpdate();
-                voteThreadUpdateSt.setInt(1, -1);
+                modifyThreadVotes(threadId, -1);
             } else {
                 voteThreadSt.setInt(1, threadId);
                 voteThreadSt.setInt(2, voterId);
                 voteThreadSt.executeUpdate();
-                voteThreadUpdateSt.setInt(1, 1);
+                modifyThreadVotes(threadId, 1);
             }
-            voteThreadUpdateSt.setInt(2, threadId);
-            voteThreadUpdateSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed voteThread(int voterId, int threadId)");
@@ -1086,26 +1289,22 @@ public class DatabaseService {
             "(record_post_id, record_voter_id) " +
             "values (?, ?)";
     private static final String deleteVoteRecordPost = "delete from post_vote where record_post_id = ? and record_voter_id = ?";
-    private static final String votePostUpdate = "update thread set post_votes = post_votes + ? where post_id = ?";
     public static void votePost(int voterId, int postId) throws PostNotExistsException {
         PostData postData = getPostData(postId);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement votePostSt = con.prepareStatement(votePost);
-             PreparedStatement deleteVoteRecordSt = con.prepareStatement(deleteVoteRecordPost);
-             PreparedStatement votePostUpdateSt = con.prepareStatement(votePostUpdate)) {
+             PreparedStatement deleteVoteRecordSt = con.prepareStatement(deleteVoteRecordPost)) {
             if (hasVotedPost(voterId, postId)) {
                 deleteVoteRecordSt.setInt(1, postId);
                 deleteVoteRecordSt.setInt(2, voterId);
                 deleteVoteRecordSt.executeUpdate();
-                votePostUpdateSt.setInt(1, -1);
+                modifyPostVotes(postId, -1);
             } else {
                 votePostSt.setInt(1, postId);
                 votePostSt.setInt(2, voterId);
                 votePostSt.executeUpdate();
-                votePostUpdateSt.setInt(1, 1);
+                modifyPostVotes(postId, 1);
             }
-            votePostUpdateSt.setInt(2, postId);
-            votePostUpdateSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed votePost(int voterId, int postId)");
@@ -1116,29 +1315,200 @@ public class DatabaseService {
             "(record_comment_id, record_voter_id) " +
             "values (?, ?)";
     private static final String deleteVoteRecordComment = "delete from comment_vote where record_comment_id = ? and record_voter_id = ?";
-    private static final String voteCommentUpdate = "update thread set comment_votes = comment_votes + ? where comment_id = ?";
     public static void voteComment(int voterId, int commentId) throws CommentNotExistsException {
         CommentData commentData = getCommentData(commentId);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement voteCommentSt = con.prepareStatement(voteComment);
-             PreparedStatement deleteVoteRecordSt = con.prepareStatement(deleteVoteRecordComment);
-             PreparedStatement voteCommentUpdateSt = con.prepareStatement(voteCommentUpdate)) {
+             PreparedStatement deleteVoteRecordSt = con.prepareStatement(deleteVoteRecordComment)) {
             if (hasVotedComment(voterId, commentId)) {
                 deleteVoteRecordSt.setInt(1, commentId);
                 deleteVoteRecordSt.setInt(2, voterId);
                 deleteVoteRecordSt.executeUpdate();
-                voteCommentUpdateSt.setInt(1, -1);
+                modifyCommentVotes(commentId, -1);
             } else {
                 voteCommentSt.setInt(1, commentId);
                 voteCommentSt.setInt(2, voterId);
                 voteCommentSt.executeUpdate();
-                voteCommentUpdateSt.setInt(1, 1);
+                modifyCommentVotes(commentId, 1);
             }
-            voteCommentUpdateSt.setInt(2, commentId);
-            voteCommentUpdateSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed voteComment(int voterId, int commentId)");
+        }
+    }
+
+    private static final int heatPerThread = 100;
+    private static final int heatPerPost = 30;
+    private static final int heatPerComment = 10;
+    private static final int heatPerVote = 3;
+    private static final int heatPerView = 1;
+    private static final String modifyForumThreads = "update forum set forum_threads = forum_thread + ? where forum_id = ?";
+    private static final String modifyForumHeat = "update forum set forum_heat = forum_heat + ? where forum_id = ?";
+    private static final String modifyThreadPosts = "update thread set thread_posts = thread_posts + ? where thread_id = ?";
+    private static final String modifyThreadViews = "update thread set thread_views = thread_views + ? where thread_id = ?";
+    private static final String modifyThreadVotes = "update thread set thread_votes = thread_votes + ? where thread_id = ?";
+    private static final String modifyThreadHeat = "update thread set thread_heat = thread_heat + ? where thread_id = ?";
+    private static final String modifyPostComments = "update post set post_comments = post_comments + ? where post_id = ?";
+    private static final String modifyPostVotes = "update post set post_votes = post_votes + ? where post_id = ?";
+    private static final String modifyCommentComments = "update comment set comment_comments = comment_comments + ? where comment_id = ?";
+    private static final String modifyCommentVotes = "update comment set comment_votes = comment_votes + ? where comment_id = ?";
+
+    private static void modifyForumThreads(int forumId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyForumThreadsSt = con.prepareStatement(modifyForumThreads)) {
+            modifyForumThreadsSt.setInt(1, modifier);
+            modifyForumThreadsSt.setInt(2, forumId);
+            modifyForumThreadsSt.executeUpdate();
+            if (modifier > 0) {
+                modifyForumHeat(forumId, modifier * heatPerThread);
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyForumThreads(int forumId, int modifier)");
+        }
+    }
+
+    private static void modifyForumHeat(int forumId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyForumHeatSt = con.prepareStatement(modifyForumHeat)) {
+            modifyForumHeatSt.setInt(1, modifier);
+            modifyForumHeatSt.setInt(2, forumId);
+            modifyForumHeatSt.executeUpdate();
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyForumHeat(int forumId, int modifier)");
+        }
+    }
+
+    private static void modifyThreadPosts(int threadId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyThreadPostsSt = con.prepareStatement(modifyThreadPosts)) {
+            modifyThreadPostsSt.setInt(1, modifier);
+            modifyThreadPostsSt.setInt(2, threadId);
+            modifyThreadPostsSt.executeUpdate();
+            if (modifier > 0) {
+                modifyThreadHeat(threadId, modifier * heatPerPost);
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyThreadPosts(int threadId, int modifier)");
+        }
+    }
+
+    private static void modifyThreadViews(int threadId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyThreadViewsSt = con.prepareStatement(modifyThreadViews)) {
+            modifyThreadViewsSt.setInt(1, modifier);
+            modifyThreadViewsSt.setInt(2, threadId);
+            modifyThreadViewsSt.executeUpdate();
+            if (modifier > 0) {
+                modifyThreadHeat(threadId, modifier * heatPerView);
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyThreadViews(int threadId, int modifier)");
+        }
+    }
+
+    private static void modifyThreadVotes(int threadId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyThreadVotesSt = con.prepareStatement(modifyThreadVotes)) {
+            modifyThreadVotesSt.setInt(1, modifier);
+            modifyThreadVotesSt.setInt(2, threadId);
+            modifyThreadVotesSt.executeUpdate();
+            modifyThreadHeat(threadId, modifier * heatPerVote);
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyThreadVotes(int threadId, int modifier)");
+        }
+    }
+
+    private static void modifyThreadHeat(int threadId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyThreadHeatSt = con.prepareStatement(modifyThreadHeat)) {
+            modifyThreadHeatSt.setInt(1, modifier);
+            modifyThreadHeatSt.setInt(2, threadId);
+            modifyThreadHeatSt.executeUpdate();
+            if (modifier > 0) {
+                try {
+                    ThreadData threadData = getThreadData(threadId);
+                    modifyForumHeat(threadData.getForumId(), modifier);
+                } catch (ThreadNotExistException e) {
+                    logger.info(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyThreadHeat(int threadId, int modifier)");
+        }
+    }
+
+    private static void modifyPostComments(int postId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyPostCommentsSt = con.prepareStatement(modifyPostComments)) {
+            modifyPostCommentsSt.setInt(1, modifier);
+            modifyPostCommentsSt.setInt(2, postId);
+            modifyPostCommentsSt.executeUpdate();
+            if (modifier > 0) {
+                try {
+                    PostData postData = getPostData(postId);
+                    modifyThreadHeat(postData.getThreadId(), modifier * heatPerComment);
+                } catch (PostNotExistsException e) {
+                    logger.info(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyPostComments(int postId, int modifier)");
+        }
+    }
+
+    private static void modifyPostVotes(int postId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyPostVotesSt = con.prepareStatement(modifyPostVotes)) {
+            modifyPostVotesSt.setInt(1, modifier);
+            modifyPostVotesSt.setInt(2, postId);
+            modifyPostVotesSt.executeUpdate();
+            try {
+                PostData postData = getPostData(postId);
+                modifyThreadHeat(postData.getThreadId(), modifier * heatPerVote);
+            } catch (PostNotExistsException e) {
+                logger.info(e.getMessage());
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyPostVotes(int postId, int modifier)");
+        }
+    }
+
+    private static void modifyCommentComments(int commentId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyCommentCommentsSt = con.prepareStatement(modifyCommentComments)) {
+            modifyCommentCommentsSt.setInt(1, modifier);
+            modifyCommentCommentsSt.setInt(2, commentId);
+            modifyCommentCommentsSt.executeUpdate();
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyCommentComments(int commentId, int modifier)");
+        }
+    }
+
+    private static void modifyCommentVotes(int commentId, int modifier) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement modifyCommentVotesSt = con.prepareStatement(modifyCommentVotes)) {
+            modifyCommentVotesSt.setInt(1, modifier);
+            modifyCommentVotesSt.setInt(2, commentId);
+            modifyCommentVotesSt.executeUpdate();
+            try {
+                CommentData commentData = getCommentData(commentId);
+                PostData postData = getPostData(commentData.getPostId());
+                modifyThreadHeat(postData.getThreadId(), modifier * heatPerVote);
+            } catch (PostNotExistsException | CommentNotExistsException e) {
+                logger.info(e.getMessage());
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed modifyCommentVotes(int commentId, int modifier)");
         }
     }
 

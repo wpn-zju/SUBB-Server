@@ -11,22 +11,22 @@ import java.time.Instant;
 @Getter
 @Builder
 public class PostData {
-    @JsonProperty(EntityConstant.POST_INFO_POST_ID)
+    @JsonProperty(EntityConstant.POST_DATA_POST_ID)
     private final int postId;
-    @JsonProperty(EntityConstant.POST_INFO_THREAD_ID)
+    @JsonProperty(EntityConstant.POST_DATA_THREAD_ID)
     private final int threadId;
-    @JsonProperty(EntityConstant.POST_INFO_AUTHOR)
+    @JsonProperty(EntityConstant.POST_DATA_AUTHOR)
     private final int author;
-    @JsonProperty(EntityConstant.POST_INFO_TIMESTAMP)
+    @JsonProperty(EntityConstant.POST_DATA_TIMESTAMP)
     private final Instant timestamp;
-    @JsonProperty(EntityConstant.POST_INFO_REFER_TO)
-    private final int referTo;
-    @JsonProperty(EntityConstant.POST_INFO_CONTENT)
+    @JsonProperty(EntityConstant.POST_DATA_QUOTE_ID)
+    private final int quoteId;
+    @JsonProperty(EntityConstant.POST_DATA_CONTENT)
     private final String content;
-    @JsonProperty(EntityConstant.POST_INFO_STATUS)
+    @JsonProperty(EntityConstant.POST_DATA_STATUS)
     private final EnumPostStatus status;
-    @JsonProperty(EntityConstant.POST_INFO_COMMENTS)
+    @JsonProperty(EntityConstant.POST_DATA_COMMENTS)
     private final int comments;
-    @JsonProperty(EntityConstant.POST_INFO_VOTES)
+    @JsonProperty(EntityConstant.POST_DATA_VOTES)
     private final int votes;
 }

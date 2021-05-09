@@ -1,9 +1,11 @@
 package com.subb.service.controller.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 
 @Getter
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class SmallTalkResponseBody {
     @JsonProperty("code")
     private final int code;

@@ -1,9 +1,9 @@
 package com.subb.service.controller.enums;
 
 public enum EnumPasscodeStatus {
-    PASSCODE_STATUS_PENDING("passcode_pending"),
-    PASSCODE_STATUS_EXPIRED("passcode_expired"),
-    PASSCODE_STATUS_REVOKED("passcode_revoked");
+    PASSCODE_STATUS_VALID("passcode_status_valid"),
+    PASSCODE_STATUS_EXPIRED("passcode_status_expired"),
+    PASSCODE_STATUS_REVOKED("passcode_status_revoked");
 
     private final String token;
 

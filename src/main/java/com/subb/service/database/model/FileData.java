@@ -10,18 +10,18 @@ import java.time.Instant;
 @Getter
 @Builder
 public final class FileData {
-    @JsonProperty(EntityConstant.FILE_INFO_FILE_ID)
+    @JsonProperty(EntityConstant.FILE_DATA_FILE_ID)
     private final int fileId;
-    @JsonProperty(EntityConstant.FILE_INFO_NAME)
+    @JsonProperty(EntityConstant.FILE_DATA_NAME)
     private final String name;
-    @JsonProperty(EntityConstant.FILE_INFO_LINK)
+    @JsonProperty(EntityConstant.FILE_DATA_LINK)
     private final String link;
-    @JsonProperty(EntityConstant.FILE_INFO_UPLOADER)
+    @JsonProperty(EntityConstant.FILE_DATA_UPLOADER)
     private final int uploader;
-    @JsonProperty(EntityConstant.FILE_INFO_TIMESTAMP)
+    @JsonProperty(EntityConstant.FILE_DATA_TIMESTAMP)
     private final Instant timestamp;
-    @JsonProperty(EntityConstant.FILE_INFO_SIZE)
+    @JsonProperty(EntityConstant.FILE_DATA_SIZE)
     private final int size;
-    @JsonProperty(EntityConstant.FILE_INFO_DOWNLOADS)
+    @JsonProperty(EntityConstant.FILE_DATA_DOWNLOADS)
     private final int downloads;
 }

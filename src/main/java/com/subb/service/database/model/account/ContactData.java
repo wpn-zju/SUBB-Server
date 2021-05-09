@@ -9,24 +9,24 @@ import lombok.Getter;
 @Getter
 @Builder
 public final class ContactData {
-    @JsonProperty(EntityConstant.CONTACT_INFO_CONTACT_ID)
+    @JsonProperty(EntityConstant.CONTACT_DATA_CONTACT_ID)
     private final int contactId;
-    @JsonProperty(EntityConstant.CONTACT_INFO_EMAIL)
+    @JsonProperty(EntityConstant.CONTACT_DATA_EMAIL)
     private final String email;
-    @JsonProperty(EntityConstant.CONTACT_INFO_NICKNAME)
+    @JsonProperty(EntityConstant.CONTACT_DATA_NICKNAME)
     private final String nickname;
-    @JsonProperty(EntityConstant.CONTACT_INFO_PRIVILEGE)
+    @JsonProperty(EntityConstant.CONTACT_DATA_PRIVILEGE)
     private final EnumUserPrivilege privilege;
-    @JsonProperty(EntityConstant.CONTACT_INFO_GENDER)
+    @JsonProperty(EntityConstant.CONTACT_DATA_GENDER)
     private final int gender;
-    @JsonProperty(EntityConstant.CONTACT_INFO_AVATAR_LINK)
+    @JsonProperty(EntityConstant.CONTACT_DATA_AVATAR_LINK)
     private final String avatarLink;
-    @JsonProperty(EntityConstant.CONTACT_INFO_PERSONAL_INFO)
+    @JsonProperty(EntityConstant.CONTACT_DATA_PERSONAL_INFO)
     private final String personalInfo;
-    @JsonProperty(EntityConstant.CONTACT_INFO_POSTS)
+    @JsonProperty(EntityConstant.CONTACT_DATA_POSTS)
     private final int posts;
-    @JsonProperty(EntityConstant.CONTACT_INFO_EXP)
+    @JsonProperty(EntityConstant.CONTACT_DATA_EXP)
     private final int exp;
-    @JsonProperty(EntityConstant.CONTACT_INFO_PRESTIGE)
+    @JsonProperty(EntityConstant.CONTACT_DATA_PRESTIGE)
     private final int prestige;
 }

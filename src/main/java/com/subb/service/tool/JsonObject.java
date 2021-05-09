@@ -1,5 +1,8 @@
 package com.subb.service.tool;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -127,6 +130,7 @@ public class JsonObject {
         }
     }
 
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public static JsonObject create(String input) {
         try {
             Index index = new Index(0, input.length());
@@ -142,6 +146,7 @@ public class JsonObject {
     }
 
     @Override
+    @JsonValue
     public String toString() {
         return toStringBuilder().toString();
     }

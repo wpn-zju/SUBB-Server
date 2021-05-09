@@ -12,8 +12,8 @@ public class ForumData {
     private final int forumId;
     @JsonProperty(EntityConstant.FORUM_DATA_TITLE)
     private final String title;
-    @JsonProperty(EntityConstant.FORUM_DATA_POSTS)
-    private final int posts;
+    @JsonProperty(EntityConstant.FORUM_DATA_THREADS)
+    private final int threads;
     @JsonProperty(EntityConstant.FORUM_DATA_HEAT)
     private final int heat;
 }

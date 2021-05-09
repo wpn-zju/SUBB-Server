@@ -9,26 +9,26 @@ import lombok.Getter;
 @Getter
 @Builder
 public final class UserData {
-    @JsonProperty(EntityConstant.USER_INFO_USER_ID)
+    @JsonProperty(EntityConstant.USER_DATA_USER_ID)
     private final int userId;
-    @JsonProperty(EntityConstant.USER_INFO_EMAIL)
+    @JsonProperty(EntityConstant.USER_DATA_EMAIL)
     private final String email;
-    @JsonProperty(EntityConstant.USER_INFO_NICKNAME)
+    @JsonProperty(EntityConstant.USER_DATA_NICKNAME)
     private final String nickname;
-    @JsonProperty(EntityConstant.USER_INFO_PASSWORD_HASH)
+    @JsonProperty(EntityConstant.USER_DATA_PASSWORD_HASH)
     private final String passwordHash;
-    @JsonProperty(EntityConstant.USER_INFO_PRIVILEGE)
+    @JsonProperty(EntityConstant.USER_DATA_PRIVILEGE)
     private final EnumUserPrivilege privilege;
-    @JsonProperty(EntityConstant.USER_INFO_GENDER)
+    @JsonProperty(EntityConstant.USER_DATA_GENDER)
     private final int gender;
-    @JsonProperty(EntityConstant.USER_INFO_AVATAR_LINK)
+    @JsonProperty(EntityConstant.USER_DATA_AVATAR_LINK)
     private final String avatarLink;
-    @JsonProperty(EntityConstant.USER_INFO_PERSONAL_INFO)
+    @JsonProperty(EntityConstant.USER_DATA_PERSONAL_INFO)
     private final String personalInfo;
-    @JsonProperty(EntityConstant.USER_INFO_POSTS)
+    @JsonProperty(EntityConstant.USER_DATA_POSTS)
     private final int posts;
-    @JsonProperty(EntityConstant.USER_INFO_EXP)
+    @JsonProperty(EntityConstant.USER_DATA_EXP)
     private final int exp;
-    @JsonProperty(EntityConstant.USER_INFO_PRESTIGE)
+    @JsonProperty(EntityConstant.USER_DATA_PRESTIGE)
     private final int prestige;
 }

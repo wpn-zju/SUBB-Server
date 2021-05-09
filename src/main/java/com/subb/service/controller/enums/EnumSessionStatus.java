@@ -1,9 +1,9 @@
 package com.subb.service.controller.enums;
 
 public enum EnumSessionStatus {
-    SESSION_STATUS_VALID("session_valid"),
-    SESSION_STATUS_EXPIRED("session_expired"),
-    SESSION_STATUS_REVOKED("session_revoked");
+    SESSION_STATUS_VALID("session_status_valid"),
+    SESSION_STATUS_EXPIRED("session_status_expired"),
+    SESSION_STATUS_REVOKED("session_status_revoked");
 
     private final String token;
 

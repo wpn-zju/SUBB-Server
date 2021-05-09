@@ -21,8 +21,8 @@ public class CommentData {
     private final int author;
     @JsonProperty(EntityConstant.COMMENT_DATA_TIMESTAMP)
     private final Instant timestamp;
-    @JsonProperty(EntityConstant.COMMENT_DATA_REFER_TO)
-    private final int referTo;
+    @JsonProperty(EntityConstant.COMMENT_DATA_QUOTE_ID)
+    private final int quoteId;
     @JsonProperty(EntityConstant.COMMENT_DATA_CONTENT)
     private final String content;
     @JsonProperty(EntityConstant.COMMENT_DATA_STATUS)
