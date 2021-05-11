@@ -1,8 +1,10 @@
 package com.subb.service.database.model.site;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.subb.service.controller.enums.EnumPostStatus;
 import com.subb.service.controller.utilities.EntityConstant;
+import com.subb.service.database.InstantSerializer;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -18,6 +20,7 @@ public class PostData {
     @JsonProperty(EntityConstant.POST_DATA_AUTHOR)
     private final int author;
     @JsonProperty(EntityConstant.POST_DATA_TIMESTAMP)
+    @JsonSerialize(using = InstantSerializer.class)
     private final Instant timestamp;
     @JsonProperty(EntityConstant.POST_DATA_QUOTE_ID)
     private final int quoteId;

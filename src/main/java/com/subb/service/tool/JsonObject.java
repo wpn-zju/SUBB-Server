@@ -145,8 +145,8 @@ public class JsonObject {
         }
     }
 
-    @Override
     @JsonValue
+    @Override
     public String toString() {
         return toStringBuilder().toString();
     }

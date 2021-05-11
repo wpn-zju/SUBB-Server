@@ -37,7 +37,7 @@ public class DatabaseService {
     private static final String password = "peinan";
     private static final String defaultAvatarLink = "https://peinanweng.com/download_index/base/avatar.png";
 
-    private static final String queryUserIdByEmail = "select user_id from account where user_email = ?";
+    private static final String queryUserIdByEmail = "select user_id from user_main where user_email = ?";
     public static boolean hasUserWithEmail(String userEmail) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryUserIdByEmailSt = con.prepareStatement(queryUserIdByEmail)) {
@@ -68,20 +68,6 @@ public class DatabaseService {
         }
     }
 
-    private static final String setSessionStatus = "update session set session_status = ? where session_id = ?";
-    @SuppressWarnings("SameParameterValue")
-    private static void setSessionStatus(String session, EnumSessionStatus newStatus) {
-        try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement setSessionStatusSt = con.prepareStatement(setSessionStatus)) {
-            setSessionStatusSt.setString(1, newStatus.toString());
-            setSessionStatusSt.setString(2, session);
-            setSessionStatusSt.executeUpdate();
-        } catch (SQLException e) {
-            logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed setSessionStatus(String session, EnumSessionStatus newStatus)");
-        }
-    }
-
     private static final String querySession = "select " +
             "session_id, session_user_id, session_create_datetime, session_expire_datetime, session_status " +
             "from session where session_id = ?";
@@ -97,7 +83,7 @@ public class DatabaseService {
                     int sessionUserId = rs.getInt(2);
                     Instant sessionCreateTime = rs.getTimestamp(3).toInstant();
                     Instant sessionExpireTime = rs.getTimestamp(4).toInstant();
-                    EnumSessionStatus sessionStatus = EnumSessionStatus.valueOf(rs.getString(5));
+                    EnumSessionStatus sessionStatus = EnumSessionStatus.fromString(rs.getString(5));
                     if (sessionStatus == EnumSessionStatus.SESSION_STATUS_VALID) {
                         if (sessionExpireTime.isBefore(Instant.now())) {
                             setSessionStatus(sessionId, EnumSessionStatus.SESSION_STATUS_EXPIRED);
@@ -126,7 +112,7 @@ public class DatabaseService {
     private static final String insertAccount = "insert into user_main " +
             "(user_email, user_name, user_password_hash, user_privilege) " +
             "values (?, 'New User', 'password_placeholder', ?)";
-    private static final String insertAccountDetail = "insert into account_detail " +
+    private static final String insertAccountDetail = "insert into user_detail " +
             "(user_id, user_gender, user_avatar_link, user_personal_info, user_posts, user_exp, user_prestige) " +
             "values (?, 0, ?, 'Hello World!', 0, 0, 0)";
     private static final String queryLastInserted = "select last_insert_id()";
@@ -178,10 +164,10 @@ public class DatabaseService {
     private static final String setUserAllSessionStatus = "update session set session_status = ? where session_user_id = ?";
     private static final String updateUserPassword = "update user_main set user_password_hash = ? where user_id = ?";
     public static void modifyUserPassword(int userId, String newPassword) {
-        try (Connection con = DriverManager.getConnection(url, user, newPassword);
+        try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement setSessionStatusUserAllSt = con.prepareStatement(setUserAllSessionStatus);
              PreparedStatement updateUserPasswordSt = con.prepareStatement(updateUserPassword)) {
-            String hash = passwordHash(password);
+            String hash = passwordHash(newPassword);
             setSessionStatusUserAllSt.setString(1, EnumSessionStatus.SESSION_STATUS_REVOKED.toString());
             setSessionStatusUserAllSt.setInt(2, userId);
             setSessionStatusUserAllSt.executeUpdate();
@@ -241,7 +227,7 @@ public class DatabaseService {
         }
     }
 
-    private static final String updateLoginTimestamp = "update user_main set user_login_timestamp = ? where user_id = ?";
+    private static final String updateLoginTimestamp = "update user_main set user_timestamp = ? where user_id = ?";
     private static void updateLoginRecord(int userId) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement updateLoginTimestampSt = con.prepareStatement(updateLoginTimestamp)) {
@@ -255,7 +241,7 @@ public class DatabaseService {
     }
 
     private static final String queryUser = "select " +
-            "p1.user_id, p1.user_email, p1.user_name, p1.user_password_hash, p1.user_privilege " +
+            "p1.user_id, p1.user_email, p1.user_name, p1.user_password_hash, p1.user_privilege, " +
             "p2.user_gender, p2.user_avatar_link, p2.user_personal_info, p2.user_posts, p2.user_exp, p2.user_prestige " +
             "from user_main p1 inner join " +
             "(select user_id, user_gender, user_avatar_link, user_personal_info, user_posts, user_exp, user_prestige from user_detail) p2 " +
@@ -271,7 +257,7 @@ public class DatabaseService {
                             .email(rs.getString(2))
                             .nickname(rs.getString(3))
                             .passwordHash(rs.getString(4))
-                            .privilege(EnumUserPrivilege.valueOf(rs.getString(5)))
+                            .privilege(EnumUserPrivilege.fromString(rs.getString(5)))
                             .gender(rs.getInt(6))
                             .avatarLink(rs.getString(7))
                             .personalInfo(rs.getString(8))
@@ -298,7 +284,7 @@ public class DatabaseService {
                             .contactId(rs.getInt(1))
                             .email(rs.getString(2))
                             .nickname(rs.getString(3))
-                            .privilege(EnumUserPrivilege.valueOf(rs.getString(5)))
+                            .privilege(EnumUserPrivilege.fromString(rs.getString(5)))
                             .gender(rs.getInt(6))
                             .avatarLink(rs.getString(7))
                             .personalInfo(rs.getString(8))
@@ -315,7 +301,7 @@ public class DatabaseService {
         }
     }
 
-    private static final String queryNotification = "select notification_id, notification_user_id, notification_body, notification_status " +
+    private static final String queryNotification = "select notification_id, notification_user_id, notification_reply_id, notification_type, notification_status " +
             "from notification where notification_user_id = ? and notification_status = ?";
     public static JsonObject getNotification(int userId) {
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -327,7 +313,8 @@ public class DatabaseService {
                 while (rs.next()) {
                     JsonObject record = new JsonObject(new LinkedHashMap<>());
                     record.put("notification_id", new JsonObject(rs.getInt(1)));
-                    record.put("notification_body", JsonObject.create(rs.getString(2)));
+                    record.put("notification_reply_id", new JsonObject(rs.getInt(2)));
+                    record.put("notification_type", new JsonObject(rs.getString(3)));
                     result.add(record);
                 }
                 return result;
@@ -367,12 +354,12 @@ public class DatabaseService {
 
     private static final int historyRecordsPerPage = 30;
     private static final String queryBrowsingHistory = "select record_id, record_user_id, record_thread_id, record_timestamp " +
-            "from browsing_history where record_user_id = ? limit ?, ?";
+            "from history where record_user_id = ? limit ?, ?";
     public static JsonObject getBrowsingHistory(int userId, int page)  {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryBrowsingHistorySt = con.prepareStatement(queryBrowsingHistory)) {
             queryBrowsingHistorySt.setInt(1, userId);
-            queryBrowsingHistorySt.setInt(2, historyRecordsPerPage * page);
+            queryBrowsingHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryBrowsingHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryBrowsingHistorySt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -397,7 +384,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryThreadHistorySt = con.prepareStatement(queryThreadHistory)) {
             queryThreadHistorySt.setInt(1, userId);
-            queryThreadHistorySt.setInt(2, historyRecordsPerPage * page);
+            queryThreadHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryThreadHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryThreadHistorySt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -423,7 +410,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryPostHistorySt = con.prepareStatement(queryPostHistory)) {
             queryPostHistorySt.setInt(1, userId);
-            queryPostHistorySt.setInt(2, historyRecordsPerPage * page);
+            queryPostHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryPostHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryPostHistorySt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -449,7 +436,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryCommentHistorySt = con.prepareStatement(queryCommentHistory)) {
             queryCommentHistorySt.setInt(1, userId);
-            queryCommentHistorySt.setInt(2, historyRecordsPerPage * page);
+            queryCommentHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryCommentHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryCommentHistorySt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -473,7 +460,7 @@ public class DatabaseService {
     public static JsonObject getHomepage() {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryHomepageSt = con.prepareStatement(queryHomepage)) {
-            queryHomepageSt.setTimestamp(1, Timestamp.from(Instant.now()));
+            queryHomepageSt.setTimestamp(1, Timestamp.from(Instant.now().minus(Duration.ofDays(1))));
             try (ResultSet rs = queryHomepageSt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
                 while (rs.next()) {
@@ -503,7 +490,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement getForumPageSt = con.prepareStatement(getForumPage)) {
             getForumPageSt.setInt(1, forumId);
-            getForumPageSt.setInt(2, threadsPerPage * page);
+            getForumPageSt.setInt(2, threadsPerPage * (page - 1));
             getForumPageSt.setInt(3, threadsPerPage);
             try (ResultSet rs = getForumPageSt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -534,7 +521,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement getThreadPageSt = con.prepareStatement(getThreadPage)) {
             getThreadPageSt.setInt(1, threadId);
-            getThreadPageSt.setInt(2, postsPerPage * page);
+            getThreadPageSt.setInt(2, postsPerPage * (page - 1));
             getThreadPageSt.setInt(3, postsPerPage);
             if (page == 0) { modifyThreadViews(threadId, 1); }
             try (ResultSet rs = getThreadPageSt.executeQuery()) {
@@ -566,7 +553,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement getPostPageSt = con.prepareStatement(getPostPage)) {
             getPostPageSt.setInt(1, postId);
-            getPostPageSt.setInt(2, commentsPerPage * page);
+            getPostPageSt.setInt(2, commentsPerPage * (page - 1));
             getPostPageSt.setInt(3, commentsPerPage);
             try (ResultSet rs = getPostPageSt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -596,7 +583,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement getCommentPageSt = con.prepareStatement(getCommentPage)) {
             getCommentPageSt.setInt(1, commentId);
-            getCommentPageSt.setInt(2, commentsPerPage * page);
+            getCommentPageSt.setInt(2, commentsPerPage * (page - 1));
             getCommentPageSt.setInt(3, commentsPerPage);
             try (ResultSet rs = getCommentPageSt.executeQuery()) {
                 JsonObject result = new JsonObject(new ArrayList<>());
@@ -619,11 +606,11 @@ public class DatabaseService {
     private static final String queryForum = "select " +
             "forum_id, forum_title, forum_threads, forum_heat from forum where forum_id = ?";
     private static final String queryThread = "select " +
-            "thread_id, thread_forum_id, thread_title, thread_author, thread_create_timestamp, thread_active_timestamp, thread_status, thread_posts, thread_views, thread_votes, thread_heat,  from thread where thread_id = ?";
+            "thread_id, thread_forum_id, thread_title, thread_author, thread_create_timestamp, thread_active_timestamp, thread_status, thread_posts, thread_views, thread_votes, thread_heat from thread where thread_id = ?";
     private static final String queryPost = "select " +
             "post_id, post_thread_id, post_author, post_timestamp, post_quote_id, post_content, post_status, post_comments, post_votes from post where post_id = ?";
     private static final String queryComment = "select " +
-            "comment_id, comment_post_id, comment_root_id, comment_author, comment_timestamp, comment_quote_id, comment_content, comment_status, comment_comments, comment_votes, from comment where comment_id = ?";
+            "comment_id, comment_post_id, comment_root_id, comment_author, comment_timestamp, comment_quote_id, comment_content, comment_status, comment_comments, comment_votes from comment where comment_id = ?";
     public static ForumData getForumData(int forumId) throws ForumNotExistsException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryForumSt = con.prepareStatement(queryForum)) {
@@ -659,11 +646,11 @@ public class DatabaseService {
                             .author(rs.getInt(4))
                             .createTimestamp(rs.getTimestamp(5).toInstant())
                             .activeTimestamp(rs.getTimestamp(6).toInstant())
-                            .status(EnumThreadStatus.valueOf(rs.getString(7)))
-                            .posts(rs.getInt(7))
-                            .views(rs.getInt(8))
-                            .votes(rs.getInt(9))
-                            .heat(rs.getInt(10)).build();
+                            .status(EnumThreadStatus.fromString(rs.getString(7)))
+                            .posts(rs.getInt(8))
+                            .views(rs.getInt(9))
+                            .votes(rs.getInt(10))
+                            .heat(rs.getInt(11)).build();
                 } else {
                     throw new ThreadNotExistException();
                 }
@@ -687,7 +674,7 @@ public class DatabaseService {
                             .timestamp(rs.getTimestamp(4).toInstant())
                             .quoteId(rs.getInt(5))
                             .content(rs.getString(6))
-                            .status(EnumPostStatus.valueOf(rs.getString(7)))
+                            .status(EnumPostStatus.fromString(rs.getString(7)))
                             .comments(rs.getInt(8))
                             .votes(rs.getInt(9))
                             .build();
@@ -715,7 +702,7 @@ public class DatabaseService {
                             .timestamp(rs.getTimestamp(5).toInstant())
                             .quoteId(rs.getInt(6))
                             .content(rs.getString(7))
-                            .status(EnumCommentStatus.valueOf(rs.getString(8)))
+                            .status(EnumCommentStatus.fromString(rs.getString(8)))
                             .comments(rs.getInt(9))
                             .votes(rs.getInt(10))
                             .build();
@@ -749,7 +736,7 @@ public class DatabaseService {
     }
 
     private static final String queryUserMessageList = "select message_id, message_sender, message_receiver, message_type, message_status, message_content, message_timestamp " +
-            "from account where message_receiver = ?";
+            "from message where message_receiver = ?";
     public static JsonObject fetchPrivateMessage(int userId) {
         JsonObject result = new JsonObject(new ArrayList<>());
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -863,7 +850,7 @@ public class DatabaseService {
                     String passcodeEmail = rs.getString(1);
                     Instant passcodeCreateTime = rs.getTimestamp(2).toInstant();
                     Instant passcodeExpireTime = rs.getTimestamp(3).toInstant();
-                    EnumPasscodeStatus passcodeStatus = EnumPasscodeStatus.valueOf(rs.getString(4));
+                    EnumPasscodeStatus passcodeStatus = EnumPasscodeStatus.fromString(rs.getString(4));
                     if (passcodeStatus == EnumPasscodeStatus.PASSCODE_STATUS_VALID) {
                         if (passcodeExpireTime.isBefore(Instant.now())) {
                             setPasscodeStatus(passcode, EnumPasscodeStatus.PASSCODE_STATUS_EXPIRED);
@@ -881,6 +868,20 @@ public class DatabaseService {
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed String passcode, String email");
+        }
+    }
+
+    private static final String setSessionStatus = "update session set session_status = ? where session_id = ?";
+    @SuppressWarnings("SameParameterValue")
+    private static void setSessionStatus(String session, EnumSessionStatus newStatus) {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement setSessionStatusSt = con.prepareStatement(setSessionStatus)) {
+            setSessionStatusSt.setString(1, newStatus.toString());
+            setSessionStatusSt.setString(2, session);
+            setSessionStatusSt.executeUpdate();
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed setSessionStatus(String session, EnumSessionStatus newStatus)");
         }
     }
 
@@ -904,10 +905,14 @@ public class DatabaseService {
         }
     }
 
+    public static void revokeSession(String session) {
+        setSessionStatus(session, EnumSessionStatus.SESSION_STATUS_REVOKED);
+    }
+
     private static final Duration FILE_EXPIRE_DURATION = Duration.ofDays(365);
     private static final String insertFileArchive = "insert into file " +
-            "(file_name, file_link, file_uploader, file_upload_time, file_size) " +
-            "values (?, ?, ?, ?, ?)";
+            "(file_name, file_link, file_uploader, file_upload_time, file_size, file_downloads) " +
+            "values (?, ?, ?, ?, ?, ?)";
     public static void newFileDescriptor(String fileName, String fileLink, int fileUploader, int fileSize) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement insertFileArchiveSt = con.prepareStatement(insertFileArchive)) {
@@ -915,8 +920,8 @@ public class DatabaseService {
             insertFileArchiveSt.setString(2, fileLink);
             insertFileArchiveSt.setInt(3, fileUploader);
             insertFileArchiveSt.setTimestamp(4, Timestamp.from(Instant.now()));
-            insertFileArchiveSt.setTimestamp(5, Timestamp.from(Instant.now().plus(FILE_EXPIRE_DURATION)));
-            insertFileArchiveSt.setInt(6, fileSize);
+            insertFileArchiveSt.setInt(5, fileSize);
+            insertFileArchiveSt.setInt(6, 0);
             insertFileArchiveSt.executeUpdate();
         } catch (SQLException e) {
             logger.info(e.getMessage());
@@ -943,7 +948,8 @@ public class DatabaseService {
 
     private static final String insertNotification = "insert into notification " +
             "(notification_user_id, notification_reply_id, notification_type, notification_status) " +
-            "values (?, ?, ?, ?)";
+            "values (?, ?, ?, ?) " +
+            "on duplicate key update notification_id = notification_id";
     private static void notify(int userId, int replyId, EnumNotificationType notificationType) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement insertNotificationSt = con.prepareStatement(insertNotification)) {
@@ -1342,7 +1348,7 @@ public class DatabaseService {
     private static final int heatPerComment = 10;
     private static final int heatPerVote = 3;
     private static final int heatPerView = 1;
-    private static final String modifyForumThreads = "update forum set forum_threads = forum_thread + ? where forum_id = ?";
+    private static final String modifyForumThreads = "update forum set forum_threads = forum_threads + ? where forum_id = ?";
     private static final String modifyForumHeat = "update forum set forum_heat = forum_heat + ? where forum_id = ?";
     private static final String modifyThreadPosts = "update thread set thread_posts = thread_posts + ? where thread_id = ?";
     private static final String modifyThreadViews = "update thread set thread_views = thread_views + ? where thread_id = ?";
@@ -1578,7 +1584,7 @@ public class DatabaseService {
     // WARNING - FOR TESTING ONLY
     private static final String deleteUser = "delete from user_main";
     private static final String deleteUserDetail = "delete from user_detail";
-    private static final String deleteBrowsingHistory = "delete from browsing_history";
+    private static final String deleteHistory = "delete from history";
     private static final String deleteThread = "delete from thread";
     private static final String deleteThreadVote = "delete from thread_vote";
     private static final String deletePost = "delete from post";
@@ -1590,12 +1596,13 @@ public class DatabaseService {
     private static final String deletePasscode = "delete from passcode";
     private static final String deleteSession = "delete from session";
     private static final String deleteForum = "delete from forum";
+    private static final String deleteNotification = "delete from notification";
     public static void reset() {
         try (Connection con = DriverManager.getConnection(url, user, password);
             Statement deleteSt = con.createStatement()) {
             deleteSt.executeUpdate(deleteUser);
             deleteSt.executeUpdate(deleteUserDetail);
-            deleteSt.executeUpdate(deleteBrowsingHistory);
+            deleteSt.executeUpdate(deleteHistory);
             deleteSt.executeUpdate(deleteThread);
             deleteSt.executeUpdate(deleteThreadVote);
             deleteSt.executeUpdate(deletePost);
@@ -1607,6 +1614,7 @@ public class DatabaseService {
             deleteSt.executeUpdate(deletePasscode);
             deleteSt.executeUpdate(deleteSession);
             deleteSt.executeUpdate(deleteForum);
+            deleteSt.executeUpdate(deleteNotification);
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed resetDatabase()");

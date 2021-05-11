@@ -1,7 +1,9 @@
 package com.subb.service.database.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.subb.service.controller.utilities.EntityConstant;
+import com.subb.service.database.InstantSerializer;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,6 +21,7 @@ public final class FileData {
     @JsonProperty(EntityConstant.FILE_DATA_UPLOADER)
     private final int uploader;
     @JsonProperty(EntityConstant.FILE_DATA_TIMESTAMP)
+    @JsonSerialize(using = InstantSerializer.class)
     private final Instant timestamp;
     @JsonProperty(EntityConstant.FILE_DATA_SIZE)
     private final int size;

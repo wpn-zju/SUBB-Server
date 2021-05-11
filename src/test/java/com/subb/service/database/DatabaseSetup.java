@@ -4,8 +4,6 @@ import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.Test;
 
-import static org.testng.Assert.assertNotEquals;
-
 @SuppressWarnings({"FieldCanBeLocal", "unused"})
 public class DatabaseSetup {
 
@@ -59,50 +57,6 @@ public class DatabaseSetup {
     @BeforeSuite
     public void beforeSuite() throws Exception {
         DatabaseService.reset();
-
-        userId1 = DatabaseService.newAccount(userEmail1);
-        userId2 = DatabaseService.newAccount(userEmail2);
-        userId3 = DatabaseService.newAccount(userEmail3);
-        userId4 = DatabaseService.newAccount(userEmail4);
-        userId5 = DatabaseService.newAccount(userEmail5);
-        userId6 = DatabaseService.newAccount(userEmail6);
-        userId7 = DatabaseService.newAccount(userEmail7);
-        userId8 = DatabaseService.newAccount(userEmail8);
-        userId9 = DatabaseService.newAccount(userEmail9);
-        userId10 = DatabaseService.newAccount(userEmail10);
-        assertNotEquals(userId1, 0);
-        assertNotEquals(userId2, 0);
-        assertNotEquals(userId3, 0);
-        assertNotEquals(userId4, 0);
-        assertNotEquals(userId5, 0);
-        assertNotEquals(userId6, 0);
-        assertNotEquals(userId7, 0);
-        assertNotEquals(userId8, 0);
-        assertNotEquals(userId9, 0);
-        assertNotEquals(userId10, 0);
-        assertNotEquals(groupId1, 0);
-        assertNotEquals(groupId2, 0);
-        assertNotEquals(groupId3, 0);
-        DatabaseService.modifyUserName(userId1, userName1);
-        DatabaseService.modifyUserName(userId2, userName2);
-        DatabaseService.modifyUserName(userId3, userName3);
-        DatabaseService.modifyUserName(userId4, userName4);
-        DatabaseService.modifyUserName(userId5, userName5);
-        DatabaseService.modifyUserName(userId6, userName6);
-        DatabaseService.modifyUserName(userId7, userName7);
-        DatabaseService.modifyUserName(userId8, userName8);
-        DatabaseService.modifyUserName(userId9, userName9);
-        DatabaseService.modifyUserName(userId10, userName10);
-        DatabaseService.modifyUserPassword(userId1, userPassword1);
-        DatabaseService.modifyUserPassword(userId2, userPassword2);
-        DatabaseService.modifyUserPassword(userId3, userPassword3);
-        DatabaseService.modifyUserPassword(userId4, userPassword4);
-        DatabaseService.modifyUserPassword(userId5, userPassword5);
-        DatabaseService.modifyUserPassword(userId6, userPassword6);
-        DatabaseService.modifyUserPassword(userId7, userPassword7);
-        DatabaseService.modifyUserPassword(userId8, userPassword8);
-        DatabaseService.modifyUserPassword(userId9, userPassword9);
-        DatabaseService.modifyUserPassword(userId10, userPassword10);
     }
 
     @AfterSuite
@@ -115,3 +69,47 @@ public class DatabaseSetup {
 
     }
 }
+
+//userId1 = DatabaseService.newAccount(userEmail1);
+//userId2 = DatabaseService.newAccount(userEmail2);
+//userId3 = DatabaseService.newAccount(userEmail3);
+//userId4 = DatabaseService.newAccount(userEmail4);
+//userId5 = DatabaseService.newAccount(userEmail5);
+//userId6 = DatabaseService.newAccount(userEmail6);
+//userId7 = DatabaseService.newAccount(userEmail7);
+//userId8 = DatabaseService.newAccount(userEmail8);
+//userId9 = DatabaseService.newAccount(userEmail9);
+//userId10 = DatabaseService.newAccount(userEmail10);
+//assertNotEquals(userId1, 0);
+//assertNotEquals(userId2, 0);
+//assertNotEquals(userId3, 0);
+//assertNotEquals(userId4, 0);
+//assertNotEquals(userId5, 0);
+//assertNotEquals(userId6, 0);
+//assertNotEquals(userId7, 0);
+//assertNotEquals(userId8, 0);
+//assertNotEquals(userId9, 0);
+//assertNotEquals(userId10, 0);
+//assertNotEquals(groupId1, 0);
+//assertNotEquals(groupId2, 0);
+//assertNotEquals(groupId3, 0);
+//DatabaseService.modifyUserName(userId1, userName1);
+//DatabaseService.modifyUserName(userId2, userName2);
+//DatabaseService.modifyUserName(userId3, userName3);
+//DatabaseService.modifyUserName(userId4, userName4);
+//DatabaseService.modifyUserName(userId5, userName5);
+//DatabaseService.modifyUserName(userId6, userName6);
+//DatabaseService.modifyUserName(userId7, userName7);
+//DatabaseService.modifyUserName(userId8, userName8);
+//DatabaseService.modifyUserName(userId9, userName9);
+//DatabaseService.modifyUserName(userId10, userName10);
+//DatabaseService.modifyUserPassword(userId1, userPassword1);
+//DatabaseService.modifyUserPassword(userId2, userPassword2);
+//DatabaseService.modifyUserPassword(userId3, userPassword3);
+//DatabaseService.modifyUserPassword(userId4, userPassword4);
+//DatabaseService.modifyUserPassword(userId5, userPassword5);
+//DatabaseService.modifyUserPassword(userId6, userPassword6);
+//DatabaseService.modifyUserPassword(userId7, userPassword7);
+//DatabaseService.modifyUserPassword(userId8, userPassword8);
+//DatabaseService.modifyUserPassword(userId9, userPassword9);
+//DatabaseService.modifyUserPassword(userId10, userPassword10);

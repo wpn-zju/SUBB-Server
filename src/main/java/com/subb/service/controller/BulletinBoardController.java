@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.UUID;
 
@@ -121,7 +122,7 @@ public class BulletinBoardController {
         try {
             int userId = DatabaseService.queryUserIdByEmail(email);
             UserData userData = DatabaseService.getUserDataAll(userId);
-            if (userData.getPasswordHash().equals(password)) {
+            if (DatabaseService.passwordHash(password).equals(userData.getPasswordHash())) {
                 String newSession = generateSessionToken();
                 DatabaseService.insertSession(userId, newSession);
                 response.addCookie(new Cookie(BulletinBoardController.SESSION_TOKEN, newSession));
@@ -134,27 +135,9 @@ public class BulletinBoardController {
         } catch (UserEmailNotExistsException e) {
             return ResponseEntity.ok().body(
                     new SmallTalkResponseBody(402, "SMALLTALK - sign in - user not found"));
-        } catch (UserNotExistsException e) {
+        } catch (UserNotExistsException | NoSuchAlgorithmException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new SmallTalkResponseBody(501, "SMALLTALK - sign in - server error"));
-        }
-    }
-
-    @PostMapping(ClientConstant.API_SIGN_IN)
-    public ResponseEntity<?> signIn(HttpServletRequest request) {
-        String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
-        if (session == null) {
-            return ResponseEntity.ok().body(
-                    new SmallTalkResponseBody(401, "SMALLTALK - sign in - auth token not found"));
-        } else {
-            try {
-                DatabaseService.queryUserIdBySession(session);
-                return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(200, "SMALLTALK - sign in - success"));
-            } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
-                return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(402, "SMALLTALK - sign in - invalid auth token"));
-            }
         }
     }
 
@@ -167,6 +150,7 @@ public class BulletinBoardController {
         } else {
             try {
                 DatabaseService.queryUserIdBySession(session);
+                DatabaseService.revokeSession(session);
                 response.addCookie(new Cookie(BulletinBoardController.SESSION_TOKEN, null));
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - sign out - success"));
@@ -275,7 +259,7 @@ public class BulletinBoardController {
     @PostMapping(ClientConstant.API_NEW_POST)
     public ResponseEntity<?> newPost(HttpServletRequest request,
             @RequestParam(required = true, name = ClientConstant.NEW_POST_THREAD_ID) Integer threadId,
-            @RequestParam(required = false, name = ClientConstant.NEW_POST_QUOTE_ID) Integer quoteId,
+            @RequestParam(required = false, defaultValue = "0", name = ClientConstant.NEW_POST_QUOTE_ID) Integer quoteId,
             @RequestBody(required = true) String content
     ) {
         String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
@@ -286,6 +270,7 @@ public class BulletinBoardController {
             try {
                 // Todo: CHECK VALID RICH TEXT BODY
                 int authorId = DatabaseService.queryUserIdBySession(session);
+                if (quoteId == null) quoteId = 0;
                 DatabaseService.newPost(authorId, threadId, quoteId, content);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - new post - success"));
@@ -302,7 +287,7 @@ public class BulletinBoardController {
     @PostMapping(ClientConstant.API_NEW_COMMENT)
     public ResponseEntity<?> newComment(HttpServletRequest request,
             @RequestParam(required = true, name = ClientConstant.NEW_COMMENT_POST_ID) Integer postId,
-            @RequestParam(required = false, name = ClientConstant.NEW_COMMENT_QUOTE_ID) Integer quoteId,
+            @RequestParam(required = false, defaultValue = "0", name = ClientConstant.NEW_COMMENT_QUOTE_ID) Integer quoteId,
             @RequestBody(required = true) String commentContent
     ) {
         String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
@@ -797,7 +782,7 @@ public class BulletinBoardController {
     @PostMapping(ClientConstant.API_ADMIN_DISABLE_ACCOUNT)
     public ResponseEntity<?> adminDisableAccount(HttpServletRequest request,
             @RequestParam(required = true, name = ClientConstant.ADMIN_DISABLE_ACCOUNT_USER_ID) Integer userId,
-            @RequestParam(required = false, name = ClientConstant.ADMIN_DISABLE_ACCOUNT_PERIOD) Integer period
+            @RequestParam(required = false, defaultValue = "0", name = ClientConstant.ADMIN_DISABLE_ACCOUNT_PERIOD) Integer period
     ) {
         String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
         if (session == null) {

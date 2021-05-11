@@ -1,8 +1,10 @@
 package com.subb.service.database.model.site;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.subb.service.controller.enums.EnumThreadStatus;
 import com.subb.service.controller.utilities.EntityConstant;
+import com.subb.service.database.InstantSerializer;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,8 +22,10 @@ public class ThreadData {
     @JsonProperty(EntityConstant.THREAD_DATA_AUTHOR)
     private final int author;
     @JsonProperty(EntityConstant.THREAD_DATA_CREATE_TIMESTAMP)
+    @JsonSerialize(using = InstantSerializer.class)
     private final Instant createTimestamp;
     @JsonProperty(EntityConstant.THREAD_DATA_ACTIVE_TIMESTAMP)
+    @JsonSerialize(using = InstantSerializer.class)
     private final Instant activeTimestamp;
     @JsonProperty(EntityConstant.THREAD_DATA_STATUS)
     private final EnumThreadStatus status;
