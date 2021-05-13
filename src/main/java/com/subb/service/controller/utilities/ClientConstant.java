@@ -31,7 +31,6 @@ public final class ClientConstant {
     public static final String API_GET_BROWSING_HISTORY = "/small_talk_api/get_browsing_history";
     public static final String API_LOAD_SELF = "/small_talk_api/load_self";
     public static final String API_LOAD_USER = "/small_talk_api/load_user";
-    public static final String API_ARCHIVE_FILE = "/small_talk_api/archive_file";
     public static final String API_PUSH_PRIVATE_MESSAGE = "/small_talk_api/push_private_message";
     public static final String API_FETCH_PRIVATE_MESSAGE = "/small_talk_api/fetch_private_message";
     public static final String API_READ_PRIVATE_MESSAGE = "/small_talk_api/read_private_message";
@@ -85,10 +84,6 @@ public final class ClientConstant {
     public static final String GET_COMMENT_HISTORY_PAGE = "page";
     public static final String GET_BROWSING_HISTORY_PAGE = "page";
     public static final String LOAD_USER_USER_ID = "user_id";
-    public static final String ARCHIVE_FILE_NAME = "name";
-    public static final String ARCHIVE_FILE_LINK = "link";
-    public static final String ARCHIVE_FILE_UPLOADER = "uploader";
-    public static final String ARCHIVE_FILE_SIZE = "size";
     public static final String PUSH_PRIVATE_MESSAGE_RECEIVER = "receiver";
     public static final String PUSH_PRIVATE_MESSAGE_CONTENT = "content";
     public static final String READ_PRIVATE_MESSAGE_MESSAGE_ID = "message_id";

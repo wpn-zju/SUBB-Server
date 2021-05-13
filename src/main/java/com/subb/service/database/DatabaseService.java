@@ -1,16 +1,16 @@
 package com.subb.service.database;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.subb.service.controller.enums.*;
 import com.subb.service.database.exception.*;
 import com.subb.service.database.model.account.ContactData;
 import com.subb.service.database.model.account.UserData;
+import com.subb.service.database.model.response.HistoryRecord;
+import com.subb.service.database.model.response.Notification;
+import com.subb.service.database.model.response.PrivateMessage;
 import com.subb.service.database.model.site.CommentData;
 import com.subb.service.database.model.site.ForumData;
 import com.subb.service.database.model.site.PostData;
 import com.subb.service.database.model.site.ThreadData;
-import com.subb.service.tool.JsonObject;
 import org.apache.commons.codec.binary.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +21,7 @@ import java.sql.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
@@ -183,16 +183,11 @@ public class DatabaseService {
         }
     }
 
-    // Gender
-    // 0 - Hide
-    // 1 - Male
-    // 2 - Female
-    // 3 - Others
     private static final String updateUserGender = "update user_detail set user_gender = ? where user_id = ?";
-    public static void modifyUserGender(int userId, int newGender) {
+    public static void modifyUserGender(int userId, EnumGender newGender) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement updateUserGenderSt = con.prepareStatement(updateUserGender)) {
-            updateUserGenderSt.setInt(1, newGender);
+            updateUserGenderSt.setString(1, newGender.toString());
             updateUserGenderSt.setInt(2, userId);
             updateUserGenderSt.executeUpdate();
         } catch (SQLException e) {
@@ -214,7 +209,7 @@ public class DatabaseService {
         }
     }
 
-    private static final String updateUserPersonalInfo = "update user set user_personal_info = ? where user_id = ?";
+    private static final String updateUserPersonalInfo = "update user_detail set user_personal_info = ? where user_id = ?";
     public static void modifyUserPersonalInfo(int userId, String newInfo) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement updateUserInfoSt = con.prepareStatement(updateUserPersonalInfo)) {
@@ -258,7 +253,7 @@ public class DatabaseService {
                             .nickname(rs.getString(3))
                             .passwordHash(rs.getString(4))
                             .privilege(EnumUserPrivilege.fromString(rs.getString(5)))
-                            .gender(rs.getInt(6))
+                            .gender(EnumGender.fromString(rs.getString(6)))
                             .avatarLink(rs.getString(7))
                             .personalInfo(rs.getString(8))
                             .posts(rs.getInt(9))
@@ -285,7 +280,7 @@ public class DatabaseService {
                             .email(rs.getString(2))
                             .nickname(rs.getString(3))
                             .privilege(EnumUserPrivilege.fromString(rs.getString(5)))
-                            .gender(rs.getInt(6))
+                            .gender(EnumGender.fromString(rs.getString(6)))
                             .avatarLink(rs.getString(7))
                             .personalInfo(rs.getString(8))
                             .posts(rs.getInt(9))
@@ -302,20 +297,21 @@ public class DatabaseService {
     }
 
     private static final String queryNotification = "select notification_id, notification_user_id, notification_reply_id, notification_type, notification_status " +
-            "from notification where notification_user_id = ? and notification_status = ?";
-    public static JsonObject getNotification(int userId) {
+            "from notification where notification_user_id = ?";
+    public static List<Notification> getNotification(int userId) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryNotificationSt = con.prepareStatement(queryNotification)) {
             queryNotificationSt.setInt(1, userId);
-            queryNotificationSt.setString(2, EnumNotificationStatus.NOTIFICATION_STATUS_UNREAD.toString());
             try (ResultSet rs = queryNotificationSt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<Notification> result = new ArrayList<>();
                 while (rs.next()) {
-                    JsonObject record = new JsonObject(new LinkedHashMap<>());
-                    record.put("notification_id", new JsonObject(rs.getInt(1)));
-                    record.put("notification_reply_id", new JsonObject(rs.getInt(2)));
-                    record.put("notification_type", new JsonObject(rs.getString(3)));
-                    result.add(record);
+                    result.add(Notification.builder()
+                            .notificationId(rs.getInt(1))
+                            .notificationUserId(rs.getInt(2))
+                            .notificationReplyId(rs.getInt(3))
+                            .notificationType(EnumNotificationType.fromString(rs.getString(4)))
+                            .notificationStatus(EnumNotificationStatus.fromString(rs.getString(5)))
+                            .build());
                 }
                 return result;
             }
@@ -355,20 +351,21 @@ public class DatabaseService {
     private static final int historyRecordsPerPage = 30;
     private static final String queryBrowsingHistory = "select record_id, record_user_id, record_thread_id, record_timestamp " +
             "from history where record_user_id = ? limit ?, ?";
-    public static JsonObject getBrowsingHistory(int userId, int page)  {
+    public static List<HistoryRecord> getBrowsingHistory(int userId, int page)  {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryBrowsingHistorySt = con.prepareStatement(queryBrowsingHistory)) {
             queryBrowsingHistorySt.setInt(1, userId);
             queryBrowsingHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryBrowsingHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryBrowsingHistorySt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<HistoryRecord> result = new ArrayList<>();
                 while (rs.next()) {
-                    JsonObject record = new JsonObject(new LinkedHashMap<>());
-                    record.put("user_id", new JsonObject(rs.getInt(2)));
-                    record.put("thread_id", new JsonObject(rs.getInt(3)));
-                    record.put("timestamp", new JsonObject(rs.getTimestamp(4).toInstant().toString()));
-                    result.add(record);
+                    result.add(HistoryRecord.builder()
+                            .historyRecordId(rs.getInt(1))
+                            .historyUserId(rs.getInt(2))
+                            .historyThreadId(rs.getInt(3))
+                            .historyTimestamp(rs.getTimestamp(4).toInstant())
+                            .build());
                 }
                 return result;
             }
@@ -380,25 +377,25 @@ public class DatabaseService {
 
     private static final String queryThreadHistory = "select thread_id " +
             "from thread where thread_author = ? limit ?, ?";
-    public static JsonObject getThreadHistory(int userId, int page) {
+    public static List<ThreadData> getThreadHistory(int userId, int page) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryThreadHistorySt = con.prepareStatement(queryThreadHistory)) {
             queryThreadHistorySt.setInt(1, userId);
             queryThreadHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryThreadHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryThreadHistorySt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<ThreadData> result = new ArrayList<>();
                 while (rs.next()) {
                     int threadId = rs.getInt(1);
                     ThreadData threadData = getThreadData(threadId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(threadData)));
+                    result.add(threadData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getThreadHistory(int userId, int page)");
-        } catch (ThreadNotExistException | JsonProcessingException e) {
+        } catch (ThreadNotExistException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get thread history");
         }
@@ -406,25 +403,25 @@ public class DatabaseService {
 
     private static final String queryPostHistory = "select post_id " +
             "from post where post_author = ? limit ?, ?";
-    public static JsonObject getPostHistory(int userId, int page) {
+    public static List<PostData> getPostHistory(int userId, int page) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryPostHistorySt = con.prepareStatement(queryPostHistory)) {
             queryPostHistorySt.setInt(1, userId);
             queryPostHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryPostHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryPostHistorySt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<PostData> result = new ArrayList<>();
                 while (rs.next()) {
                     int postId = rs.getInt(1);
                     PostData postData = getPostData(postId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(postData)));
+                    result.add(postData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getPostHistory(int userId, int page)");
-        } catch (PostNotExistsException | JsonProcessingException e) {
+        } catch (PostNotExistsException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get post history");
         }
@@ -432,48 +429,48 @@ public class DatabaseService {
 
     private static final String queryCommentHistory = "select comment_id " +
             "from comment where comment_author = ? limit ?, ?";
-    public static JsonObject getCommentHistory(int userId, int page) {
+    public static List<CommentData> getCommentHistory(int userId, int page) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryCommentHistorySt = con.prepareStatement(queryCommentHistory)) {
             queryCommentHistorySt.setInt(1, userId);
             queryCommentHistorySt.setInt(2, historyRecordsPerPage * (page - 1));
             queryCommentHistorySt.setInt(3, historyRecordsPerPage);
             try (ResultSet rs = queryCommentHistorySt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<CommentData> result = new ArrayList<>();
                 while (rs.next()) {
                     int commentId = rs.getInt(1);
                     CommentData commentData = getCommentData(commentId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(commentData)));
+                    result.add(commentData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getCommentHistory(int userId, int page)");
-        } catch (CommentNotExistsException | JsonProcessingException e) {
+        } catch (CommentNotExistsException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get comment history");
         }
     }
 
     private static final String queryHomepage = "select thread_id from thread where thread_create_timestamp > ? order by thread_heat desc limit 10";
-    public static JsonObject getHomepage() {
+    public static List<ThreadData> getHomepage() {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryHomepageSt = con.prepareStatement(queryHomepage)) {
             queryHomepageSt.setTimestamp(1, Timestamp.from(Instant.now().minus(Duration.ofDays(1))));
             try (ResultSet rs = queryHomepageSt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<ThreadData> result = new ArrayList<>();
                 while (rs.next()) {
                     int threadId = rs.getInt(1);
                     ThreadData threadData = getThreadData(threadId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(threadData)));
+                    result.add(threadData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getHomepage()");
-        } catch (ThreadNotExistException | JsonProcessingException e) {
+        } catch (ThreadNotExistException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get homepage");
         }
@@ -481,7 +478,8 @@ public class DatabaseService {
 
     private static final int threadsPerPage = 30;
     private static final String getForumPage = "select thread_id from thread where thread_forum_id = ? order by thread_active_timestamp desc limit ?, ?";
-    public static JsonObject getForumPage(int forumId, int page) throws MalformedRequestException {
+    @SuppressWarnings("unused")
+    public static List<ThreadData> getForumPage(int forumId, int page) throws MalformedRequestException {
         try {
             ForumData forumData = getForumData(forumId);
         } catch (ForumNotExistsException e) {
@@ -493,18 +491,18 @@ public class DatabaseService {
             getForumPageSt.setInt(2, threadsPerPage * (page - 1));
             getForumPageSt.setInt(3, threadsPerPage);
             try (ResultSet rs = getForumPageSt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<ThreadData> result = new ArrayList<>();
                 while (rs.next()) {
                     int threadId = rs.getInt(1);
                     ThreadData threadData = getThreadData(threadId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(threadData)));
+                    result.add(threadData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getForumPage(int forumId, int page)");
-        } catch (ThreadNotExistException | JsonProcessingException e) {
+        } catch (ThreadNotExistException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get forum page");
         }
@@ -512,7 +510,8 @@ public class DatabaseService {
 
     private static final int postsPerPage = 30;
     private static final String getThreadPage = "select post_id from post where post_thread_id = ? limit ?, ?";
-    public static JsonObject getThreadPage(int threadId, int page) throws MalformedRequestException {
+    @SuppressWarnings("unused")
+    public static List<PostData> getThreadPage(int threadId, int page) throws MalformedRequestException {
         try {
             ThreadData threadData = getThreadData(threadId);
         } catch (ThreadNotExistException e) {
@@ -525,18 +524,18 @@ public class DatabaseService {
             getThreadPageSt.setInt(3, postsPerPage);
             if (page == 0) { modifyThreadViews(threadId, 1); }
             try (ResultSet rs = getThreadPageSt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<PostData> result = new ArrayList<>();
                 while (rs.next()) {
                     int postId = rs.getInt(1);
                     PostData postData = getPostData(postId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(postData)));
+                    result.add(postData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getThreadPage(int threadId, int page)");
-        } catch (PostNotExistsException | JsonProcessingException e) {
+        } catch (PostNotExistsException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get thread page");
         }
@@ -544,7 +543,8 @@ public class DatabaseService {
 
     private static final int commentsPerPage = 30;
     private static final String getPostPage = "select comment_id from comment where comment_post_id = ? limit ?, ?";
-    public static JsonObject getPostPage(int postId, int page) throws MalformedRequestException {
+    @SuppressWarnings("unused")
+    public static List<CommentData> getPostPage(int postId, int page) throws MalformedRequestException {
         try {
             PostData postData = getPostData(postId);
         } catch (PostNotExistsException e) {
@@ -556,25 +556,26 @@ public class DatabaseService {
             getPostPageSt.setInt(2, commentsPerPage * (page - 1));
             getPostPageSt.setInt(3, commentsPerPage);
             try (ResultSet rs = getPostPageSt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<CommentData> result = new ArrayList<>();
                 while (rs.next()) {
                     int commentId = rs.getInt(1);
                     CommentData commentData = getCommentData(commentId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(commentData)));
+                    result.add(commentData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getPostPage(int postId, int page)");
-        } catch (CommentNotExistsException | JsonProcessingException e) {
+        } catch (CommentNotExistsException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get post page");
         }
     }
 
     private static final String getCommentPage = "select comment_id from comment where comment_root_id = ? limit ?, ?";
-    public static JsonObject getCommentPage(int commentId, int page) throws MalformedRequestException {
+    @SuppressWarnings("unused")
+    public static List<CommentData> getCommentPage(int commentId, int page) throws MalformedRequestException {
         try {
             CommentData commentData = getCommentData(commentId);
         } catch (CommentNotExistsException e) {
@@ -586,18 +587,18 @@ public class DatabaseService {
             getCommentPageSt.setInt(2, commentsPerPage * (page - 1));
             getCommentPageSt.setInt(3, commentsPerPage);
             try (ResultSet rs = getCommentPageSt.executeQuery()) {
-                JsonObject result = new JsonObject(new ArrayList<>());
+                List<CommentData> result = new ArrayList<>();
                 while (rs.next()) {
                     int childCommentId = rs.getInt(1);
                     CommentData childCommentData = getCommentData(childCommentId);
-                    result.add(JsonObject.create(new ObjectMapper().writeValueAsString(childCommentData)));
+                    result.add(childCommentData);
                 }
                 return result;
             }
         } catch (SQLException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("MySQL Execution Failed getCommentPage(int commentId, int page)");
-        } catch (CommentNotExistsException | JsonProcessingException e) {
+        } catch (CommentNotExistsException e) {
             logger.info(e.getMessage());
             throw new DataAccessException("Server error - get comment page");
         }
@@ -717,7 +718,8 @@ public class DatabaseService {
     }
 
     private static final String insertMessage = "insert into message (message_sender, message_receiver, message_type, message_status, message_content, message_timestamp) " +
-            "values (?, ?, ?, ?, ?)";
+            "values (?, ?, ?, ?, ?, ?)";
+    @SuppressWarnings("unused")
     public static void pushPrivateMessage(int sender, int receiver, String content, EnumMessageType messageType) throws UserNotExistsException {
         ContactData receiverData = getUserData(receiver);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -737,21 +739,21 @@ public class DatabaseService {
 
     private static final String queryUserMessageList = "select message_id, message_sender, message_receiver, message_type, message_status, message_content, message_timestamp " +
             "from message where message_receiver = ?";
-    public static JsonObject fetchPrivateMessage(int userId) {
-        JsonObject result = new JsonObject(new ArrayList<>());
+    public static List<PrivateMessage> fetchPrivateMessage(int userId) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryUserMessageListSt = con.prepareStatement(queryUserMessageList)) {
             queryUserMessageListSt.setInt(1, userId);
             try (ResultSet rs = queryUserMessageListSt.executeQuery()) {
+                List<PrivateMessage> result = new ArrayList<>();
                 while (rs.next()) {
-                    JsonObject message = new JsonObject(new LinkedHashMap<>());
-                    message.put("message_id", new JsonObject(rs.getInt(1)));
-                    message.put("message_sender", new JsonObject(rs.getInt(2)));
-                    message.put("message_receiver", new JsonObject(rs.getInt(3)));
-                    message.put("message_type", new JsonObject(rs.getString(4)));
-                    message.put("message_content", new JsonObject(rs.getString(5)));
-                    message.put("message_timestamp", new JsonObject(rs.getTimestamp(6).toInstant().toString()));
-                    result.add(message);
+                    result.add(PrivateMessage.builder()
+                            .messageId(rs.getInt(1))
+                            .messageSender(rs.getInt(2))
+                            .messageReceiver(rs.getInt(3))
+                            .messageType(EnumMessageType.fromString(rs.getString(4)))
+                            .messageStatus(EnumMessageStatus.fromString(rs.getString(5)))
+                            .messageContent(rs.getString(6))
+                            .messageTimestamp(rs.getTimestamp(7).toInstant()).build());
                 }
                 return result;
             }
@@ -909,26 +911,6 @@ public class DatabaseService {
         setSessionStatus(session, EnumSessionStatus.SESSION_STATUS_REVOKED);
     }
 
-    private static final Duration FILE_EXPIRE_DURATION = Duration.ofDays(365);
-    private static final String insertFileArchive = "insert into file " +
-            "(file_name, file_link, file_uploader, file_upload_time, file_size, file_downloads) " +
-            "values (?, ?, ?, ?, ?, ?)";
-    public static void newFileDescriptor(String fileName, String fileLink, int fileUploader, int fileSize) {
-        try (Connection con = DriverManager.getConnection(url, user, password);
-             PreparedStatement insertFileArchiveSt = con.prepareStatement(insertFileArchive)) {
-            insertFileArchiveSt.setString(1, fileName);
-            insertFileArchiveSt.setString(2, fileLink);
-            insertFileArchiveSt.setInt(3, fileUploader);
-            insertFileArchiveSt.setTimestamp(4, Timestamp.from(Instant.now()));
-            insertFileArchiveSt.setInt(5, fileSize);
-            insertFileArchiveSt.setInt(6, 0);
-            insertFileArchiveSt.executeUpdate();
-        } catch (SQLException e) {
-            logger.info(e.getMessage());
-            throw new DataAccessException("MySQL Execution Failed newFileDescriptor(String fileName, String fileLink, int fileUploader, int fileSize)");
-        }
-    }
-
     private static void notifyThreadAuthor(int threadId, int replyId) throws ThreadNotExistException {
         ThreadData threadData = getThreadData(threadId);
         notify(threadData.getAuthor(), replyId, EnumNotificationType.ENUM_NOTIFICATION_TYPE_THREAD_AUTHOR);
@@ -967,6 +949,7 @@ public class DatabaseService {
     private static final String insertThread = "insert into thread " +
             "(thread_forum_id, thread_title, thread_author, thread_create_timestamp, thread_active_timestamp, thread_status, thread_posts, thread_views, thread_votes, thread_heat) " +
             "values (?, ?, ?, ?, ?, ?, 0, 0, 0, 0)";
+    @SuppressWarnings("unused")
     public static int newThread(int authorId, int forumId, String threadTitle) throws MalformedRequestException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement insertThreadSt = con.prepareStatement(insertThread);
@@ -998,6 +981,7 @@ public class DatabaseService {
     private static final String insertPost = "insert into post " +
             "(post_thread_id, post_author, post_timestamp, post_quote_id, post_content, post_status, post_comments, post_votes) " +
             "values (?, ?, ?, ?, ?, ?, 0, 0)";
+    @SuppressWarnings("unused")
     public static void newPost(int authorId, int threadId, int quoteId, String postContent) throws MalformedRequestException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement insertPostSt = con.prepareStatement(insertPost);
@@ -1161,8 +1145,8 @@ public class DatabaseService {
             if (threadData.getAuthor() != userId) {
                 throw new OperationForbiddenException();
             }
-            deleteThreadSt.setInt(1, threadId);
-            deleteThreadSt.setString(2, EnumThreadStatus.THREAD_STATUS_DELETED.toString());
+            deleteThreadSt.setString(1, EnumThreadStatus.THREAD_STATUS_DELETED.toString());
+            deleteThreadSt.setInt(2, threadId);
             deleteThreadSt.executeUpdate();
         } catch (ThreadNotExistException e) {
             throw new MalformedRequestException();
@@ -1182,8 +1166,8 @@ public class DatabaseService {
                     && threadData.getAuthor() != userId) {
                 throw new OperationForbiddenException();
             }
-            deletePostSt.setInt(1, postId);
-            deletePostSt.setString(2, EnumPostStatus.POST_STATUS_DELETED.toString());
+            deletePostSt.setString(1, EnumPostStatus.POST_STATUS_DELETED.toString());
+            deletePostSt.setInt(2, postId);
             deletePostSt.executeUpdate();
         } catch (ThreadNotExistException | PostNotExistsException e) {
             throw new MalformedRequestException();
@@ -1193,7 +1177,7 @@ public class DatabaseService {
         }
     }
 
-    private static final String setCommentStatus = "update thread set comment_status = ? where comment_id = ?";
+    private static final String setCommentStatus = "update comment set comment_status = ? where comment_id = ?";
     public static void deleteComment(int userId, int commentId) throws MalformedRequestException, OperationForbiddenException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement deleteCommentSt = con.prepareStatement(setCommentStatus)) {
@@ -1206,8 +1190,8 @@ public class DatabaseService {
                     && (commentData.getRootId() == 0 || getCommentData(commentData.getRootId()).getAuthor() != userId)) {
                 throw new OperationForbiddenException();
             }
-            deleteCommentSt.setInt(1, commentId);
-            deleteCommentSt.setString(2, EnumCommentStatus.COMMENT_STATUS_DELETED.toString());
+            deleteCommentSt.setString(1, EnumCommentStatus.COMMENT_STATUS_DELETED.toString());
+            deleteCommentSt.setInt(2, commentId);
             deleteCommentSt.executeUpdate();
         } catch (ThreadNotExistException | PostNotExistsException | CommentNotExistsException e) {
             throw new MalformedRequestException();
@@ -1218,6 +1202,7 @@ public class DatabaseService {
     }
 
     private static final String queryThreadVoted = "select record_id from thread_vote where record_thread_id = ? and record_voter_id = ?";
+    @SuppressWarnings("unused")
     private static boolean hasVotedThread(int voterId, int threadId) throws ThreadNotExistException {
         ThreadData threadData = getThreadData(threadId);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -1234,6 +1219,7 @@ public class DatabaseService {
     }
 
     private static final String queryPostVoted = "select record_id from post_vote where record_post_id = ? and record_voter_id = ?";
+    @SuppressWarnings("unused")
     private static boolean hasVotedPost(int voterId, int postId) throws PostNotExistsException {
         PostData postData = getPostData(postId);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -1250,6 +1236,7 @@ public class DatabaseService {
     }
 
     private static final String queryCommentVoted = "select record_id from comment_vote where record_comment_id = ? and record_voter_id = ?";
+    @SuppressWarnings("unused")
     private static boolean hasVotedComment(int voterId, int commentId) throws CommentNotExistsException {
         CommentData commentData = getCommentData(commentId);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -1269,6 +1256,7 @@ public class DatabaseService {
             "(record_thread_id, record_voter_id) " +
             "values (?, ?)";
     private static final String deleteVoteRecordThread = "delete from thread_vote where record_thread_id = ? and record_voter_id = ?";
+    @SuppressWarnings("unused")
     public static void voteThread(int voterId, int threadId) throws ThreadNotExistException {
         ThreadData threadData = getThreadData(threadId);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -1295,6 +1283,7 @@ public class DatabaseService {
             "(record_post_id, record_voter_id) " +
             "values (?, ?)";
     private static final String deleteVoteRecordPost = "delete from post_vote where record_post_id = ? and record_voter_id = ?";
+    @SuppressWarnings("unused")
     public static void votePost(int voterId, int postId) throws PostNotExistsException {
         PostData postData = getPostData(postId);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -1321,6 +1310,7 @@ public class DatabaseService {
             "(record_comment_id, record_voter_id) " +
             "values (?, ?)";
     private static final String deleteVoteRecordComment = "delete from comment_vote where record_comment_id = ? and record_voter_id = ?";
+    @SuppressWarnings("unused")
     public static void voteComment(int voterId, int commentId) throws CommentNotExistsException {
         CommentData commentData = getCommentData(commentId);
         try (Connection con = DriverManager.getConnection(url, user, password);
@@ -1359,6 +1349,7 @@ public class DatabaseService {
     private static final String modifyCommentComments = "update comment set comment_comments = comment_comments + ? where comment_id = ?";
     private static final String modifyCommentVotes = "update comment set comment_votes = comment_votes + ? where comment_id = ?";
 
+    @SuppressWarnings("SameParameterValue")
     private static void modifyForumThreads(int forumId, int modifier) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement modifyForumThreadsSt = con.prepareStatement(modifyForumThreads)) {
@@ -1386,6 +1377,7 @@ public class DatabaseService {
         }
     }
 
+    @SuppressWarnings("SameParameterValue")
     private static void modifyThreadPosts(int threadId, int modifier) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement modifyThreadPostsSt = con.prepareStatement(modifyThreadPosts)) {
@@ -1401,6 +1393,7 @@ public class DatabaseService {
         }
     }
 
+    @SuppressWarnings("SameParameterValue")
     private static void modifyThreadViews(int threadId, int modifier) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement modifyThreadViewsSt = con.prepareStatement(modifyThreadViews)) {
@@ -1449,6 +1442,7 @@ public class DatabaseService {
         }
     }
 
+    @SuppressWarnings("SameParameterValue")
     private static void modifyPostComments(int postId, int modifier) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement modifyPostCommentsSt = con.prepareStatement(modifyPostComments)) {
@@ -1487,6 +1481,7 @@ public class DatabaseService {
         }
     }
 
+    @SuppressWarnings("SameParameterValue")
     private static void modifyCommentComments(int commentId, int modifier) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement modifyCommentCommentsSt = con.prepareStatement(modifyCommentComments)) {
@@ -1524,12 +1519,7 @@ public class DatabaseService {
         }
     }
 
-    // Todo: ADMIN DISABLE ACCOUNT DATABASE DESIGN.
-    private static final String setUserPrivilege = "update user_main set user_privilege = ? where user_id = ?";
-    public static void adminDisableAccount(int adminId, int userId, int disablePeriod) throws UserNotExistsException, OperationForbiddenException {
-
-    }
-
+    @SuppressWarnings("unused")
     public static void adminDeleteThread(int adminId, int threadId) throws ThreadNotExistException, OperationForbiddenException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement deleteThreadSt = con.prepareStatement(setThreadStatus)) {
@@ -1547,6 +1537,7 @@ public class DatabaseService {
         }
     }
 
+    @SuppressWarnings("unused")
     public static void adminDeletePost(int adminId, int postId) throws PostNotExistsException, OperationForbiddenException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement deletePostSt = con.prepareStatement(setPostStatus)) {
@@ -1564,6 +1555,7 @@ public class DatabaseService {
         }
     }
 
+    @SuppressWarnings("unused")
     public static void adminDeleteComment(int adminId, int commentId) throws CommentNotExistsException, OperationForbiddenException {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement deleteCommentSt = con.prepareStatement(setCommentStatus)) {
@@ -1591,7 +1583,6 @@ public class DatabaseService {
     private static final String deletePostVote = "delete from post_vote";
     private static final String deleteComment = "delete from comment";
     private static final String deleteCommentVote = "delete from comment_vote";
-    private static final String deleteFile = "delete from file";
     private static final String deleteMessage = "delete from message";
     private static final String deletePasscode = "delete from passcode";
     private static final String deleteSession = "delete from session";
@@ -1609,7 +1600,6 @@ public class DatabaseService {
             deleteSt.executeUpdate(deletePostVote);
             deleteSt.executeUpdate(deleteComment);
             deleteSt.executeUpdate(deleteCommentVote);
-            deleteSt.executeUpdate(deleteFile);
             deleteSt.executeUpdate(deleteMessage);
             deleteSt.executeUpdate(deletePasscode);
             deleteSt.executeUpdate(deleteSession);

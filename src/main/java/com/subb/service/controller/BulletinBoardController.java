@@ -1,6 +1,7 @@
 package com.subb.service.controller;
 
 import com.mashape.unirest.http.exceptions.UnirestException;
+import com.subb.service.controller.enums.EnumGender;
 import com.subb.service.controller.enums.EnumMessageType;
 import com.subb.service.controller.patterns.PatternChecker;
 import com.subb.service.controller.patterns.exceptions.InvalidPasscodeException;
@@ -13,12 +14,14 @@ import com.subb.service.database.DatabaseService;
 import com.subb.service.database.exception.*;
 import com.subb.service.database.model.account.ContactData;
 import com.subb.service.database.model.account.UserData;
+import com.subb.service.database.model.response.HistoryRecord;
+import com.subb.service.database.model.response.Notification;
+import com.subb.service.database.model.response.PrivateMessage;
 import com.subb.service.database.model.site.CommentData;
 import com.subb.service.database.model.site.ForumData;
 import com.subb.service.database.model.site.PostData;
 import com.subb.service.database.model.site.ThreadData;
 import com.subb.service.tool.EmailHelper;
-import com.subb.service.tool.JsonObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -32,6 +35,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 @SuppressWarnings("DefaultAnnotationParam")
@@ -181,10 +185,10 @@ public class BulletinBoardController {
     }
 
     @PostMapping(ClientConstant.API_MODIFY_INFO)
-    public ResponseEntity<?> modifyInfo(HttpServletRequest request,
+    public ResponseEntity<?> modifyInfo(HttpServletRequest request, HttpServletResponse response,
             @RequestParam(required = false, name = ClientConstant.MODIFY_INFO_NICKNAME) String nickname,
             @RequestParam(required = false, name = ClientConstant.MODIFY_INFO_PASSWORD) String password,
-            @RequestParam(required = false, name = ClientConstant.MODIFY_INFO_GENDER) Integer gender,
+            @RequestParam(required = false, name = ClientConstant.MODIFY_INFO_GENDER) String gender,
             @RequestParam(required = false, name = ClientConstant.MODIFY_INFO_AVATAR_LINK) String avatarLink,
             @RequestParam(required = false, name = ClientConstant.MODIFY_INFO_PERSONAL_INFO) String personalInfo
     ) {
@@ -199,18 +203,21 @@ public class BulletinBoardController {
                     PatternChecker.checkUserName(nickname);
                     DatabaseService.modifyUserName(userId, nickname);
                 }
-                if (password != null) {
-                    PatternChecker.checkUserPassword(password);
-                    DatabaseService.modifyUserPassword(userId, password);
-                }
                 if (gender != null) {
-                    DatabaseService.modifyUserGender(userId, gender);
+                    DatabaseService.modifyUserGender(userId, EnumGender.fromString(gender));
                 }
                 if (avatarLink != null) {
                     DatabaseService.modifyUserAvatarLink(userId, avatarLink);
                 }
                 if (personalInfo != null) {
                     DatabaseService.modifyUserPersonalInfo(userId, personalInfo);
+                }
+                if (password != null) {
+                    PatternChecker.checkUserPassword(password);
+                    DatabaseService.modifyUserPassword(userId, password);
+                    String newSession = generateSessionToken();
+                    DatabaseService.insertSession(userId, newSession);
+                    response.addCookie(new Cookie(BulletinBoardController.SESSION_TOKEN, newSession));
                 }
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - modify info - success"));
@@ -522,7 +529,7 @@ public class BulletinBoardController {
 
     @GetMapping(ClientConstant.API_GET_HOMEPAGE)
     public ResponseEntity<?> getHomepage() {
-        JsonObject homepage = DatabaseService.getHomepage();
+        List<ThreadData> homepage = DatabaseService.getHomepage();
         return ResponseEntity.ok().body(
                 new SmallTalkResponseBody(200, "SMALLTALK - get homepage - success", homepage));
     }
@@ -533,7 +540,7 @@ public class BulletinBoardController {
             @RequestParam(required = true, name = ClientConstant.GET_FORUM_PAGE_PAGE) Integer page
     ) {
         try {
-            JsonObject forumPage = DatabaseService.getForumPage(forumId, page);
+            List<ThreadData> forumPage = DatabaseService.getForumPage(forumId, page);
             return ResponseEntity.ok().body(
                     new SmallTalkResponseBody(200, "SMALLTALK - get forum page - success", forumPage));
         } catch (MalformedRequestException e) {
@@ -548,7 +555,7 @@ public class BulletinBoardController {
             @RequestParam(required = true, name = ClientConstant.GET_THREAD_PAGE_PAGE) Integer page
     ) {
         try {
-            JsonObject threadPage = DatabaseService.getThreadPage(threadId, page);
+            List<PostData> threadPage = DatabaseService.getThreadPage(threadId, page);
             return ResponseEntity.ok().body(
                     new SmallTalkResponseBody(200, "SMALLTALK - get thread page - success", threadPage));
         } catch (MalformedRequestException e) {
@@ -563,7 +570,7 @@ public class BulletinBoardController {
             @RequestParam(required = true, name = ClientConstant.GET_POST_PAGE_PAGE) Integer page
     ) {
         try {
-            JsonObject postPage = DatabaseService.getPostPage(postId, page);
+            List<CommentData> postPage = DatabaseService.getPostPage(postId, page);
             return ResponseEntity.ok().body(
                     new SmallTalkResponseBody(200, "SMALLTALK - get post page - success", postPage));
         } catch (MalformedRequestException e) {
@@ -578,7 +585,7 @@ public class BulletinBoardController {
             @RequestParam(required = true, name = ClientConstant.GET_COMMENT_PAGE_PAGE) Integer page
     ) {
         try {
-            JsonObject commentPage = DatabaseService.getCommentPage(commentId, page);
+            List<CommentData> commentPage = DatabaseService.getCommentPage(commentId, page);
             return ResponseEntity.ok().body(
                     new SmallTalkResponseBody(200, "SMALLTALK - get comment page - success", commentPage));
         } catch (MalformedRequestException e) {
@@ -597,7 +604,7 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId  = DatabaseService.queryUserIdBySession(session);
-                JsonObject threadHistoryData = DatabaseService.getThreadHistory(userId, page);
+                List<ThreadData> threadHistoryData = DatabaseService.getThreadHistory(userId, page);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - get thread history - success", threadHistoryData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
@@ -617,7 +624,7 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId  = DatabaseService.queryUserIdBySession(session);
-                JsonObject postHistoryData = DatabaseService.getPostHistory(userId, page);
+                List<PostData> postHistoryData = DatabaseService.getPostHistory(userId, page);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - get post history - success", postHistoryData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
@@ -637,7 +644,7 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId  = DatabaseService.queryUserIdBySession(session);
-                JsonObject commentHistoryData = DatabaseService.getCommentHistory(userId, page);
+                List<CommentData> commentHistoryData = DatabaseService.getCommentHistory(userId, page);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - get comment history - success", commentHistoryData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
@@ -657,7 +664,7 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId  = DatabaseService.queryUserIdBySession(session);
-                JsonObject browsingHistoryData = DatabaseService.getBrowsingHistory(userId, page);
+                List<HistoryRecord> browsingHistoryData = DatabaseService.getBrowsingHistory(userId, page);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - get browsing history - success", browsingHistoryData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
@@ -703,18 +710,6 @@ public class BulletinBoardController {
         }
     }
 
-    @PostMapping(ClientConstant.API_ARCHIVE_FILE)
-    public ResponseEntity<?> archiveFile(
-            @RequestParam(required = true, name = ClientConstant.ARCHIVE_FILE_NAME) String name,
-            @RequestParam(required = true, name = ClientConstant.ARCHIVE_FILE_LINK) String link,
-            @RequestParam(required = true, name = ClientConstant.ARCHIVE_FILE_UPLOADER) Integer uploader,
-            @RequestParam(required = true, name = ClientConstant.ARCHIVE_FILE_SIZE) Integer size
-    ) {
-        DatabaseService.newFileDescriptor(name, link, uploader, size);
-        return ResponseEntity.ok().body(
-                new SmallTalkResponseBody(200, "SMALLTALK - archive file - success"));
-    }
-
     @PostMapping(ClientConstant.API_PUSH_PRIVATE_MESSAGE)
     public ResponseEntity<?> pushPrivateMessage(HttpServletRequest request,
             @RequestParam(required = true, name = ClientConstant.PUSH_PRIVATE_MESSAGE_RECEIVER) Integer receiver,
@@ -740,7 +735,7 @@ public class BulletinBoardController {
         }
     }
 
-    @PostMapping(ClientConstant.API_FETCH_PRIVATE_MESSAGE)
+    @GetMapping(ClientConstant.API_FETCH_PRIVATE_MESSAGE)
     public ResponseEntity<?> fetchPrivateMessage(HttpServletRequest request) {
         String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
         if (session == null) {
@@ -749,7 +744,7 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId = DatabaseService.queryUserIdBySession(session);
-                JsonObject messageData = DatabaseService.fetchPrivateMessage(userId);
+                List<PrivateMessage> messageData = DatabaseService.fetchPrivateMessage(userId);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - fetch private message - success", messageData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
@@ -784,27 +779,7 @@ public class BulletinBoardController {
             @RequestParam(required = true, name = ClientConstant.ADMIN_DISABLE_ACCOUNT_USER_ID) Integer userId,
             @RequestParam(required = false, defaultValue = "0", name = ClientConstant.ADMIN_DISABLE_ACCOUNT_PERIOD) Integer period
     ) {
-        String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
-        if (session == null) {
-            return ResponseEntity.ok().body(
-                    new SmallTalkResponseBody(401, "SMALLTALK - admin disable account - auth token not found"));
-        } else {
-            try {
-                int adminId  = DatabaseService.queryUserIdBySession(session);
-                DatabaseService.adminDisableAccount(adminId, userId, period);
-                return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(200, "SMALLTALK - admin disable account - success"));
-            } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
-                return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(402, "SMALLTALK - admin disable account - invalid auth token"));
-            } catch (UserNotExistsException e) {
-                return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(403, "SMALLTALK - admin disable account - invalid user id"));
-            } catch (OperationForbiddenException e) {
-                return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(404, "SMALLTALK - admin disable account - not an administrator"));
-            }
-        }
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
     }
 
     @PostMapping(ClientConstant.API_ADMIN_DELETE_THREAD)
@@ -897,7 +872,7 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId  = DatabaseService.queryUserIdBySession(session);
-                JsonObject notificationData = DatabaseService.getNotification(userId);
+                List<Notification> notificationData = DatabaseService.getNotification(userId);
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(200, "SMALLTALK - get notification - success", notificationData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {

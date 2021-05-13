@@ -1,6 +1,7 @@
 package com.subb.service.database.model.account;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.subb.service.controller.enums.EnumGender;
 import com.subb.service.controller.enums.EnumUserPrivilege;
 import com.subb.service.controller.utilities.EntityConstant;
 import lombok.Builder;
@@ -20,7 +21,7 @@ public final class UserData {
     @JsonProperty(EntityConstant.USER_DATA_PRIVILEGE)
     private final EnumUserPrivilege privilege;
     @JsonProperty(EntityConstant.USER_DATA_GENDER)
-    private final int gender;
+    private final EnumGender gender;
     @JsonProperty(EntityConstant.USER_DATA_AVATAR_LINK)
     private final String avatarLink;
     @JsonProperty(EntityConstant.USER_DATA_PERSONAL_INFO)
