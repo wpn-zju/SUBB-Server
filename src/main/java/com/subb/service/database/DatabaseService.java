@@ -760,7 +760,7 @@ public class DatabaseService {
     }
 
     private static final String queryUserMessageList = "select message_id, message_sender, message_receiver, message_type, message_status, message_content, message_timestamp " +
-            "from message where message_receiver = ?";
+            "from message where message_sender = ? or message_receiver = ?";
     public static List<PrivateMessage> fetchPrivateMessage(int userId) {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryUserMessageListSt = con.prepareStatement(queryUserMessageList)) {
