@@ -476,6 +476,28 @@ public class DatabaseService {
         }
     }
 
+    private static final String queryForumList = "select forum_id, forum_title, forum_threads, forum_heat from forum";
+    public static List<ForumData> getForumList() {
+        try (Connection con = DriverManager.getConnection(url, user, password);
+             PreparedStatement getForumListSt = con.prepareStatement(queryForumList)) {
+            try (ResultSet rs = getForumListSt.executeQuery()) {
+                List<ForumData> result = new ArrayList<>();
+                while (rs.next()) {
+                    result.add(ForumData.builder()
+                        .forumId(rs.getInt(1))
+                        .title(rs.getString(2))
+                        .threads(rs.getInt(3))
+                        .heat(rs.getInt(4))
+                        .build());
+                }
+                return result;
+            }
+        } catch (SQLException e) {
+            logger.info(e.getMessage());
+            throw new DataAccessException("MySQL Execution Failed getForumList()");
+        }
+    }
+
     private static final int threadsPerPage = 30;
     private static final String getForumPage = "select thread_id from thread where thread_forum_id = ? order by thread_active_timestamp desc limit ?, ?";
     @SuppressWarnings("unused")

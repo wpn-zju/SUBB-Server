@@ -534,6 +534,13 @@ public class BulletinBoardController {
                 new SmallTalkResponseBody(200, "SMALLTALK - get homepage - success", homepage));
     }
 
+    @GetMapping(ClientConstant.API_GET_FORUM_LIST)
+    public ResponseEntity<?> getForumList() {
+        List<ForumData> forumList = DatabaseService.getForumList();
+        return ResponseEntity.ok().body(
+                new SmallTalkResponseBody(200, "SMALLTALK - get forum list - success", forumList));
+    }
+
     @GetMapping(ClientConstant.API_GET_FORUM_PAGE)
     public ResponseEntity<?> getForumPage(
             @RequestParam(required = true, name = ClientConstant.GET_FORUM_PAGE_FORUM_ID) Integer forumId,
@@ -683,9 +690,9 @@ public class BulletinBoardController {
         } else {
             try {
                 int userId = DatabaseService.queryUserIdBySession(session);
-                UserData userData = DatabaseService.getUserDataAll(userId);
+                ContactData contactData = DatabaseService.getUserData(userId);
                 return ResponseEntity.ok().body(
-                        new SmallTalkResponseBody(200, "SMALLTALK - load self - success", userData));
+                        new SmallTalkResponseBody(200, "SMALLTALK - load self - success", contactData));
             } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(402, "SMALLTALK - load self - invalid auth token"));

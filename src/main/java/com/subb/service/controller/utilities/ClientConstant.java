@@ -21,6 +21,7 @@ public final class ClientConstant {
     public static final String API_GET_POST = "/small_talk_api/get_post";
     public static final String API_GET_COMMENT = "/small_talk_api/get_comment";
     public static final String API_GET_HOMEPAGE = "/small_talk_api/get_homepage";
+    public static final String API_GET_FORUM_LIST = "/small_talk_api/get_forum_list";
     public static final String API_GET_FORUM_PAGE = "/small_talk_api/get_forum_page";
     public static final String API_GET_THREAD_PAGE = "/small_talk_api/get_thread_page";
     public static final String API_GET_POST_PAGE = "/small_talk_api/get_post_page";
