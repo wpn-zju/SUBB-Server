@@ -765,6 +765,7 @@ public class DatabaseService {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryUserMessageListSt = con.prepareStatement(queryUserMessageList)) {
             queryUserMessageListSt.setInt(1, userId);
+            queryUserMessageListSt.setInt(2, userId);
             try (ResultSet rs = queryUserMessageListSt.executeQuery()) {
                 List<PrivateMessage> result = new ArrayList<>();
                 while (rs.next()) {
