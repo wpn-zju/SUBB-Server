@@ -16,6 +16,9 @@ public final class ClientConstant {
     public static final String API_VOTE_THREAD = "/small_talk_api/vote_thread";
     public static final String API_VOTE_POST = "/small_talk_api/vote_post";
     public static final String API_VOTE_COMMENT = "/small_talk_api/vote_comment";
+    public static final String API_HAS_VOTED_THREAD = "/small_talk_api/has_voted_thread";
+    public static final String API_HAS_VOTED_POST = "/small_talk_api/has_voted_post";
+    public static final String API_HAS_VOTED_COMMENT = "/small_talk_api/has_voted_comment";
     public static final String API_GET_FORUM = "/small_talk_api/get_forum";
     public static final String API_GET_THREAD = "/small_talk_api/get_thread";
     public static final String API_GET_POST = "/small_talk_api/get_post";
@@ -68,6 +71,9 @@ public final class ClientConstant {
     public static final String VOTE_THREAD_THREAD_ID = "thread_id";
     public static final String VOTE_POST_POST_ID = "post_id";
     public static final String VOTE_COMMENT_COMMENT_ID = "comment_id";
+    public static final String HAS_VOTED_THREAD_THREAD_ID = "thread_id";
+    public static final String HAS_VOTED_POST_POST_ID = "post_id";
+    public static final String HAS_VOTED_COMMENT_COMMENT_ID = "comment_id";
     public static final String GET_FORUM_FORUM_ID = "forum_id";
     public static final String GET_THREAD_THREAD_ID = "thread_id";
     public static final String GET_POST_POST_ID = "post_id";

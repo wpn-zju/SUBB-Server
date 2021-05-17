@@ -27,9 +27,6 @@ public final class PatternChecker {
     private static final Pattern PATTERN_PASSCODE = Pattern.compile(
             "[0-9A-Za-z]{6}$");
 
-    // Todo: Thread Title Pattern
-    private static final Pattern PATTERN_THREAD_TITLE = Pattern.compile("");
-
     public static void checkUserEmail(String input) throws InvalidUserEmailException {
         if(!PATTERN_USER_EMAIL.matcher(input).matches()) { throw new InvalidUserEmailException(); }
     }
@@ -48,9 +45,5 @@ public final class PatternChecker {
 
     public static void checkPasscode(String input) throws InvalidPasscodeException {
         if(!PATTERN_PASSCODE.matcher(input).matches()) { throw new InvalidPasscodeException(); }
-    }
-
-    public static void checkThreadTitle(String input) throws InvalidThreadTitleException {
-        if(!PATTERN_THREAD_TITLE.matcher(input).matches()) { throw new InvalidThreadTitleException(); }
     }
 }

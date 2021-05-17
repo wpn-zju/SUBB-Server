@@ -246,8 +246,6 @@ public class BulletinBoardController {
                     new SmallTalkResponseBody(401, "SMALLTALK - new thread - auth token not found"));
         } else {
             try {
-                // Todo: CHECK VALID RICH TEXT BODY
-                // Todo: CHECK VALID THREAD TITLE
                 int authorId = DatabaseService.queryUserIdBySession(session);
                 int threadId = DatabaseService.newThread(authorId, forumId, title);
                 DatabaseService.newPost(authorId, threadId, 0, content);
@@ -275,7 +273,6 @@ public class BulletinBoardController {
                     new SmallTalkResponseBody(401, "SMALLTALK - new post - auth token not found"));
         } else {
             try {
-                // Todo: CHECK VALID RICH TEXT BODY
                 int authorId = DatabaseService.queryUserIdBySession(session);
                 if (quoteId == null) quoteId = 0;
                 DatabaseService.newPost(authorId, threadId, quoteId, content);
@@ -303,7 +300,6 @@ public class BulletinBoardController {
                     new SmallTalkResponseBody(401, "SMALLTALK - new comment - auth token not found"));
         } else {
             try {
-                // Todo: CHECK VALID CONTENT
                 int authorId = DatabaseService.queryUserIdBySession(session);
                 DatabaseService.newComment(authorId, postId, quoteId, commentContent);
                 return ResponseEntity.ok().body(
@@ -467,6 +463,78 @@ public class BulletinBoardController {
             } catch (CommentNotExistsException e) {
                 return ResponseEntity.ok().body(
                         new SmallTalkResponseBody(403, "SMALLTALK - vote comment - invalid comment id"));
+            }
+        }
+    }
+
+    @GetMapping(ClientConstant.API_HAS_VOTED_THREAD)
+    public ResponseEntity<?> hasVotedThread(HttpServletRequest request,
+            @RequestParam(required = true, name = ClientConstant.HAS_VOTED_THREAD_THREAD_ID) Integer threadId
+    ) {
+        String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
+        if (session == null) {
+            return ResponseEntity.ok().body(
+                    new SmallTalkResponseBody(401, "SMALLTALK - has voted thread - auth token not found"));
+        } else {
+            try {
+                int voterId  = DatabaseService.queryUserIdBySession(session);
+                boolean result = DatabaseService.hasVotedThread(voterId, threadId);
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(200, "SMALLTALK - has voted thread - success", result));
+            } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(402, "SMALLTALK - has voted thread - invalid auth token"));
+            } catch (ThreadNotExistException e) {
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(403, "SMALLTALK - has voted thread - invalid thread id"));
+            }
+        }
+    }
+
+    @GetMapping(ClientConstant.API_HAS_VOTED_POST)
+    public ResponseEntity<?> hasVotedPost(HttpServletRequest request,
+            @RequestParam(required = true, name = ClientConstant.HAS_VOTED_POST_POST_ID) Integer postId
+    ) {
+        String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
+        if (session == null) {
+            return ResponseEntity.ok().body(
+                    new SmallTalkResponseBody(401, "SMALLTALK - has voted post - auth token not found"));
+        } else {
+            try {
+                int voterId  = DatabaseService.queryUserIdBySession(session);
+                boolean result = DatabaseService.hasVotedPost(voterId, postId);
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(200, "SMALLTALK - has voted post - success", result));
+            } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(402, "SMALLTALK - has voted post - invalid auth token"));
+            } catch (PostNotExistsException e) {
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(403, "SMALLTALK - has voted post - invalid post id"));
+            }
+        }
+    }
+
+    @GetMapping(ClientConstant.API_HAS_VOTED_COMMENT)
+    public ResponseEntity<?> hasVotedComment(HttpServletRequest request,
+            @RequestParam(required = true, name = ClientConstant.HAS_VOTED_COMMENT_COMMENT_ID) Integer commentId
+    ) {
+        String session = readCookie(request.getCookies(), BulletinBoardController.SESSION_TOKEN);
+        if (session == null) {
+            return ResponseEntity.ok().body(
+                    new SmallTalkResponseBody(401, "SMALLTALK - has voted comment - auth token not found"));
+        } else {
+            try {
+                int voterId  = DatabaseService.queryUserIdBySession(session);
+                boolean result = DatabaseService.hasVotedComment(voterId, commentId);
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(200, "SMALLTALK - has voted comment - success", result));
+            } catch (SessionInvalidException | SessionExpiredException | SessionRevokedException e) {
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(402, "SMALLTALK - has voted comment - invalid auth token"));
+            } catch (CommentNotExistsException e) {
+                return ResponseEntity.ok().body(
+                        new SmallTalkResponseBody(403, "SMALLTALK - has voted comment - invalid comment id"));
             }
         }
     }

@@ -114,7 +114,7 @@ public class DatabaseService {
             "values (?, 'New User', 'password_placeholder', ?)";
     private static final String insertAccountDetail = "insert into user_detail " +
             "(user_id, user_gender, user_avatar_link, user_personal_info, user_posts, user_exp, user_prestige) " +
-            "values (?, 0, ?, 'Hello World!', 0, 0, 0)";
+            "values (?, ?, ?, 'Hello World!', 0, 0, 0)";
     private static final String queryLastInserted = "select last_insert_id()";
     public static int newAccount(String userEmail) throws UserEmailExistsException {
         if (hasUserWithEmail(userEmail)) { throw new UserEmailExistsException(); }
@@ -123,7 +123,8 @@ public class DatabaseService {
              PreparedStatement insertAccountDetailSt = con.prepareStatement(insertAccountDetail);
              PreparedStatement queryLastInsertedSt = con.prepareStatement(queryLastInserted)) {
             insertAccountSt.setString(1, userEmail);
-            insertAccountSt.setString(2, EnumUserPrivilege.PRIVILEGE_NORMAL.toString());
+            insertAccountSt.setString(2, EnumGender.GENDER_HIDDEN.toString());
+            insertAccountSt.setString(3, EnumUserPrivilege.PRIVILEGE_NORMAL.toString());
             insertAccountSt.executeUpdate();
             try (ResultSet rs = queryLastInsertedSt.executeQuery()) {
                 if (rs.next()) {
@@ -1226,7 +1227,7 @@ public class DatabaseService {
 
     private static final String queryThreadVoted = "select record_id from thread_vote where record_thread_id = ? and record_voter_id = ?";
     @SuppressWarnings("unused")
-    private static boolean hasVotedThread(int voterId, int threadId) throws ThreadNotExistException {
+    public static boolean hasVotedThread(int voterId, int threadId) throws ThreadNotExistException {
         ThreadData threadData = getThreadData(threadId);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement checkThreadVotedSt = con.prepareStatement(queryThreadVoted)) {
@@ -1243,7 +1244,7 @@ public class DatabaseService {
 
     private static final String queryPostVoted = "select record_id from post_vote where record_post_id = ? and record_voter_id = ?";
     @SuppressWarnings("unused")
-    private static boolean hasVotedPost(int voterId, int postId) throws PostNotExistsException {
+    public static boolean hasVotedPost(int voterId, int postId) throws PostNotExistsException {
         PostData postData = getPostData(postId);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement checkPostVotedSt = con.prepareStatement(queryPostVoted)) {
@@ -1260,7 +1261,7 @@ public class DatabaseService {
 
     private static final String queryCommentVoted = "select record_id from comment_vote where record_comment_id = ? and record_voter_id = ?";
     @SuppressWarnings("unused")
-    private static boolean hasVotedComment(int voterId, int commentId) throws CommentNotExistsException {
+    public static boolean hasVotedComment(int voterId, int commentId) throws CommentNotExistsException {
         CommentData commentData = getCommentData(commentId);
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement checkCommentVotedSt = con.prepareStatement(queryCommentVoted)) {
