@@ -454,7 +454,7 @@ public class DatabaseService {
         }
     }
 
-    private static final String queryHomepage = "select thread_id from thread where thread_create_timestamp > ? order by thread_heat desc limit 10";
+    private static final String queryHomepage = "select thread_id from thread where thread_active_timestamp > ? order by thread_heat desc limit 10";
     public static List<ThreadData> getHomepage() {
         try (Connection con = DriverManager.getConnection(url, user, password);
              PreparedStatement queryHomepageSt = con.prepareStatement(queryHomepage)) {
